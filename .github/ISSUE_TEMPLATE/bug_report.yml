@@ -1,0 +1,48 @@
+name: Bug report
+description: Report reproducible incorrect Flowmark behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for helping improve Flowmark. Remove private task content from logs and examples.
+  - type: input
+    id: version
+    attributes:
+      label: Flowmark version or commit
+      placeholder: v0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS Apple Silicon
+        - macOS Intel
+        - Linux x86-64
+        - Source checkout
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include the expected behavior and the smallest reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Validation and logs
+      description: Paste redacted output from `flowmark validate --strict` and relevant session logs.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I removed private task content and credentials.
+          required: true

@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: bun-darwin-arm64
+            artifact: flowmark-darwin-arm64
+          - os: macos-15-intel
+            target: bun-darwin-x64
+            artifact: flowmark-darwin-x64
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            artifact: flowmark-linux-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun run scripts/build-binary.ts --skip-web-build --target ${{ matrix.target }}
+      - run: bun run scripts/smoke-binary.ts --binary dist/${{ matrix.artifact }}
+      - name: Package binary
+        run: |
+          mkdir -p package
+          cp dist/${{ matrix.artifact }} package/flowmark
+          cp LICENSE README.md package/
+          tar -C package -czf dist/${{ matrix.artifact }}.tar.gz flowmark LICENSE README.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+      - name: Collect archives and checksums
+        run: |
+          mkdir -p dist
+          find release -type f -name '*.tar.gz' -exec cp '{}' dist/ ';'
+          cd dist
+          sha256sum *.tar.gz > SHA256SUMS
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --generate-notes --verify-tag

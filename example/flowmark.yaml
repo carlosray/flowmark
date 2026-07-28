@@ -1,0 +1,28 @@
+schema_version: 1
+workspace:
+  id: workspace_flowmark
+  name: Flowmark Workspace
+  created_at: 2026-07-20T21:29:46.013Z
+  timezone: Europe/Amsterdam
+paths:
+  cards: cards
+  columns: columns
+  tags: tags
+  rules: rules
+  comments: comments
+  checklists: checklists
+  templates: templates
+  archive: archive
+  system: .flowmark
+defaults:
+  initial_column_id: column_8prn4q26ufhk
+ui:
+  theme: flow-neutral
+  column_order:
+    - column_8prn4q26ufhk
+    - column_ylq2p6r6ufhk
+    - column_jir0hrtqufhk
+    - column_fhxlsia8ufhk
+    - column_dz7c8wo4ufhk
+    - column_pi5883irufhk
+    - column_done

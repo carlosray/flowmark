@@ -1,0 +1,18 @@
+schema_version: 1
+id: rule_archive_completed
+name: Archive completed cards after 30 days
+enabled: true
+trigger:
+  type: schedule
+  cron: "0 3 * * *"
+  timezone: Europe/Amsterdam
+conditions:
+  - type: completed
+    value: true
+  - type: completed_age_days
+    operator: greater_than_or_equal
+    value: 30
+actions:
+  - type: archive_card
+created_at: 2026-07-21T09:00:00Z
+updated_at: 2026-07-21T09:00:00Z

@@ -1,0 +1,20 @@
+schema_version: 1
+id: checklist_fm487nd0ufhk
+card_id: card_fm487nd0ufhk
+title: Checklist
+position: 1024
+created_at: 2026-07-18T14:04:27.752Z
+updated_at: 2026-07-21T10:13:31.974Z
+items:
+  - id: item_1
+    text: Surface tokens
+    completed: true
+    position: 1024
+  - id: item_2
+    text: Tag palette
+    completed: true
+    position: 2048
+  - id: item_3
+    text: Elevation scale
+    completed: false
+    position: 3072

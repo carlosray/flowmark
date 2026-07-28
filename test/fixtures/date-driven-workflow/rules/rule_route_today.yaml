@@ -1,0 +1,12 @@
+schema_version: 1
+id: rule_route_today
+name: Route open cards due today to Today
+enabled: true
+trigger: { type: due_state_changed }
+conditions:
+  - { type: completed, value: false }
+  - { type: due_state, value: today }
+actions:
+  - { type: move_card, column_id: column_today }
+created_at: 2026-07-20T10:00:00Z
+updated_at: 2026-07-20T10:00:00Z

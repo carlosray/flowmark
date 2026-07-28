@@ -1,0 +1,9 @@
+schema_version: 1
+id: rule_move_tomorrow_due
+name: Moved to Tomorrow sets due tomorrow
+enabled: true
+trigger: { type: card_entered_column, column_id: column_tomorrow }
+actions:
+  - { type: set_due_date, mode: offset, offset_days: 1 }
+created_at: 2026-07-20T10:00:00Z
+updated_at: 2026-07-20T10:00:00Z

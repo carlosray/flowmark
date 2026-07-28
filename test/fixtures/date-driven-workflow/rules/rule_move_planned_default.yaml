@@ -1,0 +1,11 @@
+schema_version: 1
+id: rule_move_planned_default
+name: Undated cards moved to Planned get ten days
+enabled: true
+trigger: { type: card_entered_column, column_id: column_planned }
+conditions:
+  - { type: due_state, value: none }
+actions:
+  - { type: set_due_date, mode: offset, offset_days: 10 }
+created_at: 2026-07-20T10:00:00Z
+updated_at: 2026-07-20T10:00:00Z

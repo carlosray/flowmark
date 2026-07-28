@@ -1,0 +1,13 @@
+schema_version: 1
+id: rule_sort_due_dates
+name: Sort every column by due date
+enabled: true
+trigger: { type: due_state_changed }
+actions:
+  - type: sort_cards
+    scope: all_columns
+    by: due_at
+    direction: ascending
+    nulls: last
+created_at: 2026-07-20T10:00:00Z
+updated_at: 2026-07-20T10:00:00Z

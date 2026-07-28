@@ -1,0 +1,26 @@
+schema_version: 1
+workspace:
+  id: workspace_date_workflow
+  name: Date-driven workflow
+  created_at: 2026-07-20T10:00:00Z
+  timezone: Europe/Amsterdam
+paths:
+  cards: cards
+  columns: columns
+  tags: tags
+  rules: rules
+  comments: comments
+  checklists: checklists
+  templates: templates
+  archive: archive
+  system: .flowmark
+defaults:
+  initial_column_id: column_to_plan
+ui:
+  column_order:
+    - column_today
+    - column_tomorrow
+    - column_planned
+    - column_to_plan
+    - column_done
+  theme: flow-neutral
