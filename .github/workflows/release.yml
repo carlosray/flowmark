@@ -40,8 +40,8 @@ jobs:
         run: |
           mkdir -p package
           cp dist/${{ matrix.artifact }} package/flowmark
-          cp LICENSE README.md package/
-          tar -C package -czf dist/${{ matrix.artifact }}.tar.gz flowmark LICENSE README.md
+          cp LICENSE README.md install.sh package/
+          tar -C package -czf dist/${{ matrix.artifact }}.tar.gz flowmark LICENSE README.md install.sh
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}

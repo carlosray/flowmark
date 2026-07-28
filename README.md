@@ -5,18 +5,84 @@
 <h1 align="center">Flowmark</h1>
 
 <p align="center">
-  A local-first Kanban board where Markdown and YAML are the database.
+  The local-first task board that humans and coding agents can manage together.
 </p>
 
-Flowmark turns any directory into a calm, keyboard-friendly task workspace. It
-runs on your computer, serves the board only on loopback, and writes every
-meaningful change to a human-readable file. There is no account, cloud service,
-telemetry, or hidden database.
+Flowmark gives your coding agents a task system they can operate directly and
+safely. Cards are Markdown, configuration is YAML, every change is visible in
+Git, and strict validation catches broken references before the board starts.
+An agent can create your workspace, turn a plan into cards, triage work, update
+checklists, and configure automation without browser scripting or a proprietary
+API.
+
+You still get a calm, keyboard-friendly Kanban UI. It runs on your computer,
+serves only on loopback, and stores every meaningful change in human-readable
+files. There is no account, cloud service, telemetry, or hidden database.
 
 ![Flowmark board](docs/assets/flowmark-board.png)
 
+## Give your agent a real task board
+
+Run `flowmark init` in any project directory. It creates the task workspace and
+an `AGENTS.md` contract that teaches coding agents how to inspect schemas, edit
+resources, and validate their work without silently damaging user data.
+
+```sh
+cd your-project
+flowmark init
+```
+
+Then start your preferred coding agent in that directory and ask your agent:
+
+```text
+Use Flowmark to manage work in this repository. Read AGENTS.md first.
+Create a practical board with Backlog, Ready, In Progress, Blocked, and Done.
+Add useful tags and rules, then run flowmark validate --strict.
+```
+
+```text
+Turn the implementation plan in docs/new-sync-engine.md into Flowmark cards.
+Keep each card independently actionable, add acceptance criteria as checklists,
+preserve dependency order, and validate the workspace when finished.
+```
+
+```text
+Review my Flowmark workspace. Close tasks already completed in Git, identify
+stale or blocked work, update the relevant cards, and show me the resulting
+task-file diff. Do not change application source code.
+```
+
+```text
+Configure Flowmark rules so completed cards move to Done, cards entering Today
+receive today's due date, and every column remains sorted by due date. Query
+flowmark schema rule before editing YAML and run strict validation afterward.
+```
+
+Agents and the UI share one source of truth:
+
+```text
+Agent edits Markdown/YAML ──► flowmark validate --strict ──► Flowmark UI
+            ▲                                                   │
+            └──────────────── reviewable Git diff ◄─────────────┘
+```
+
+The live schema commands keep prompts useful across Flowmark releases:
+
+```sh
+flowmark schema --all
+flowmark schema card --format json
+flowmark schema rule
+flowmark validate --strict
+```
+
+This makes Flowmark useful for autonomous planning and maintenance while
+keeping the human in control: inspect the files, review the diff, or edit any
+resource by hand.
+
 ## Why Flowmark?
 
+- **Built for agents, not integrations.** Agents use ordinary filesystem tools,
+  discover current schemas from the CLI, and leave reviewable task diffs.
 - **Your files are the product.** Cards and comments are Markdown; columns,
   tags, rules, checklists, and templates are YAML.
 - **Local and offline by default.** The UI binds to `127.0.0.1` and makes no
@@ -32,6 +98,42 @@ telemetry, or hidden database.
   background scheduler.
 
 ## Install
+
+Install the latest release into `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/carlosray/flowmark/master/install.sh | sh
+```
+
+The installer supports Apple Silicon and Intel macOS plus x86-64 Linux,
+downloads the matching archive, verifies it against the release's
+`SHA256SUMS`, and installs without elevated permissions. Ensure
+`~/.local/bin` is on your `PATH`, then run:
+
+```sh
+flowmark --help
+```
+
+Choose another directory or pin a release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/carlosray/flowmark/master/install.sh |
+  FLOWMARK_INSTALL_DIR="$HOME/bin" sh
+
+curl -fsSL https://raw.githubusercontent.com/carlosray/flowmark/master/install.sh |
+  FLOWMARK_VERSION=v0.1.0 sh
+```
+
+To inspect the script before running it:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/carlosray/flowmark/master/install.sh \
+  -o /tmp/flowmark-install.sh
+less /tmp/flowmark-install.sh
+sh /tmp/flowmark-install.sh
+```
+
+### Manual installation
 
 Download the binary for your platform from the
 [latest release](../../releases/latest):

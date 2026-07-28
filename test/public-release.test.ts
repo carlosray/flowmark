@@ -34,6 +34,7 @@ test("public repository has the expected community and automation files", async 
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
+    "install.sh",
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
     ".github/ISSUE_TEMPLATE/bug_report.yml",
@@ -71,6 +72,7 @@ test("public source and documentation contain no private checkout paths or Lovab
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
+    "install.sh",
     "package.json",
     "vite.config.ts",
     ...(await sourceFiles(".github")),
@@ -207,6 +209,7 @@ test("GitHub automation verifies source and publishes every supported binary tar
   assert.match(release, /bun-darwin-x64/);
   assert.match(release, /bun-linux-x64/);
   assert.match(release, /sha256sum/);
+  assert.match(release, /install\.sh/);
   assert.match(release, /gh release create/);
 });
 
@@ -226,6 +229,26 @@ test("README install instructions match packaged release archives", async () => 
   }
   assert.match(readme, /tar -xzf/);
   assert.match(readme, /SHA256SUMS/);
+});
+
+test("README leads with agent-native workflows and a one-line verified installer", async () => {
+  const readme = await readFile(join(root, "README.md"), "utf8");
+  const installerSource = await readFile(join(root, "install.sh"), "utf8");
+
+  assert.match(readme.slice(0, 2_500), /coding agents/i);
+  assert.match(readme, /flowmark init/);
+  assert.match(readme, /flowmark schema --all/);
+  assert.match(readme, /flowmark validate --strict/);
+  assert.match(readme, /ask your agent/i);
+  assert.match(
+    readme,
+    /curl -fsSL https:\/\/raw\.githubusercontent\.com\/carlosray\/flowmark\/master\/install\.sh \| sh/,
+  );
+  assert.match(installerSource, /SHA256SUMS/);
+  assert.match(installerSource, /sha256sum|shasum/);
+  assert.match(installerSource, /FLOWMARK_INSTALL_DIR/);
+  assert.match(installerSource, /FLOWMARK_VERSION/);
+  assert.doesNotMatch(installerSource, /\bsudo\b/);
 });
 
 test("type checking covers release scripts and tests", async () => {
