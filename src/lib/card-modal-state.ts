@@ -49,27 +49,3 @@ export function hasMoreScrollableContent({
 }): boolean {
   return scrollHeight - clientHeight - scrollTop > 4;
 }
-
-export function resizeDescriptionEditor(editor: {
-  scrollHeight: number;
-  style: { height: string };
-}): void {
-  editor.style.height = "0px";
-  editor.style.height = `${Math.max(180, editor.scrollHeight)}px`;
-}
-
-export async function submitDescriptionOnShortcut(
-  event: {
-    key: string;
-    metaKey: boolean;
-    ctrlKey: boolean;
-    preventDefault: () => void;
-  },
-  saveAndClose: () => Promise<void>,
-): Promise<boolean> {
-  if (event.key !== "Enter" || !event.metaKey) return false;
-
-  event.preventDefault();
-  await saveAndClose();
-  return true;
-}

@@ -7,6 +7,7 @@ import { parse } from "yaml";
 
 import { validateWorkspace } from "../src/lib/workspace/validator.ts";
 import { LOCAL_DEV_SERVER_ARGS, runCli } from "../src/cli.ts";
+import { BoardStore } from "../src/lib/store.ts";
 import { readWorkspaceBoard, writeWorkspaceBoard } from "../src/lib/workspace/board-repository.ts";
 import { runScheduledRule } from "../src/lib/workspace/rule-runner.ts";
 
@@ -963,6 +964,40 @@ test("persists a board edit as validated canonical source files", async () => {
     const reloaded = await readWorkspaceBoard(root);
     assert.equal(reloaded.cards.card_review?.title, "Updated review");
     assert.equal(reloaded.cards.card_review?.description, "Edited Markdown body.\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("persists an edited Markdown comment through the store as valid source", async () => {
+  const root = await makeWorkspace();
+  try {
+    const store = new BoardStore(
+      {
+        read: async () => ({ path: root, board: await readWorkspaceBoard(root) }),
+        save: async (board) => {
+          await writeWorkspaceBoard(root, board);
+          return { path: root };
+        },
+      },
+      10_000,
+    );
+    await store.reloadFromDisk();
+
+    store.updateComment(
+      "card_review",
+      "comment_note",
+      "Read [the release notes](https://example.com/release) before shipping.",
+    );
+    await store.flushPendingSave();
+
+    const source = await readFile(join(root, "comments/comment_note.md"), "utf8");
+    assert.match(source, /Read \[the release notes\]\(https:\/\/example\.com\/release\)/);
+    assert.equal(
+      (await readWorkspaceBoard(root)).cards.card_review?.comments[0]?.body.trim(),
+      "Read [the release notes](https://example.com/release) before shipping.",
+    );
+    assert.deepEqual((await validateWorkspace(root, { strict: true })).errors, []);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

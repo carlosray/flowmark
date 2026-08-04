@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { checklistExpansionStore, useChecklistExpanded } from "@/lib/checklist-expansion";
 import { useRuleEffects } from "@/lib/rules";
 import { ChecklistItemText } from "./ChecklistItemText";
+import { MarkdownInline } from "./MarkdownContent";
 
 export function CardItem({ card, onOpen }: { card: Card; onOpen: (id: string) => void }) {
   const { tags } = useBoard();
@@ -83,11 +84,11 @@ export function CardItem({ card, onOpen }: { card: Card; onOpen: (id: string) =>
         </div>
         <div
           className={cn(
-            "text-[13px] leading-snug font-medium flex-1 min-w-0 break-words",
+            "overflow-wrap-anywhere text-[13px] leading-snug font-medium flex-1 min-w-0 break-words",
             card.completed && "line-through text-muted-foreground",
           )}
         >
-          {card.title}
+          <MarkdownInline>{card.title}</MarkdownInline>
         </div>
       </div>
 

@@ -41,6 +41,7 @@ import type { ThemeId } from "@/lib/themes";
 import { checklistExpansionStore } from "@/lib/checklist-expansion";
 import { matchesTagFilter } from "@/lib/board-filters";
 import { reloadWithMinimumFeedback } from "@/lib/reload-feedback";
+import { MarkdownInline } from "./MarkdownContent";
 
 import { cn } from "@/lib/utils";
 
@@ -379,7 +380,9 @@ export function Board({
           <DragOverlay dropAnimation={null}>
             {activeCard && (
               <div className="ds-card ds-card-dragging p-2.5 w-[280px]">
-                <div className="text-[13px] font-medium">{activeCard.title}</div>
+                <div className="overflow-wrap-anywhere text-[13px] font-medium">
+                  <MarkdownInline>{activeCard.title}</MarkdownInline>
+                </div>
               </div>
             )}
             {activeColumn && (

@@ -495,6 +495,16 @@ export class BoardStore {
       comments: [...card.comments, { id: `comment_${uid()}`, body, createdAt: nowIso() }],
     });
   }
+  updateComment(cardId: string, commentId: string, body: string) {
+    const card = this.state.cards[cardId];
+    const comment = card?.comments.find((candidate) => candidate.id === commentId);
+    if (!card || !comment || comment.body === body) return;
+    this.updateCard(cardId, {
+      comments: card.comments.map((candidate) =>
+        candidate.id === commentId ? { ...candidate, body } : candidate,
+      ),
+    });
+  }
   deleteComment(cardId: string, commentId: string) {
     const card = this.state.cards[cardId];
     if (!card) return;

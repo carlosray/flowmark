@@ -96,6 +96,51 @@ test("explicit flush persists edits before the debounce window expires", async (
   assert.equal(store.getSyncSnapshot().status, "saved");
 });
 
+test("editing a comment persists only the matching comment body", async () => {
+  const initial = structuredClone(initialBoard);
+  initial.cards.card_test.comments = [
+    {
+      id: "comment_first",
+      body: "First comment",
+      createdAt: "2026-07-21T08:05:00Z",
+    },
+    {
+      id: "comment_second",
+      body: "Second comment",
+      createdAt: "2026-07-21T08:10:00Z",
+    },
+  ];
+  const savedBoards: Board[] = [];
+  const store = new BoardStore(
+    {
+      read: async () => ({ path: "/workspace", board: structuredClone(initial) }),
+      save: async (board) => {
+        savedBoards.push(structuredClone(board));
+        return { path: "/workspace" };
+      },
+    },
+    10_000,
+  );
+  await store.reloadFromDisk();
+
+  store.updateComment("card_test", "comment_first", "See [the guide](https://example.com). ");
+  await store.flushPendingSave();
+
+  assert.equal(savedBoards.length, 1);
+  assert.deepEqual(savedBoards[0].cards.card_test.comments, [
+    {
+      id: "comment_first",
+      body: "See [the guide](https://example.com). ",
+      createdAt: "2026-07-21T08:05:00Z",
+    },
+    {
+      id: "comment_second",
+      body: "Second comment",
+      createdAt: "2026-07-21T08:10:00Z",
+    },
+  ]);
+});
+
 test("drag previews update the visible board without saving or dispatching move events", async () => {
   const savedBoards: Board[] = [];
   const events: string[] = [];

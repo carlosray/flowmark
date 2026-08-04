@@ -5,9 +5,7 @@ import test from "node:test";
 import {
   buildCardContentPatch,
   hasMoreScrollableContent,
-  resizeDescriptionEditor,
   saveCardContentBeforeClose,
-  submitDescriptionOnShortcut,
 } from "../src/lib/card-modal-state.ts";
 
 test("closing a card commits the latest title and description together", () => {
@@ -93,16 +91,19 @@ test("the card editor holds automation until it unmounts", async () => {
   assert.match(source, /return \(\) => rulesStore\.releaseCard\(card\.id\)/);
 });
 
-test("descriptions and comments use the same Markdown renderer", async () => {
+test("title, description, and comments use the same preview-to-edit Markdown component", async () => {
   const source = await readFile(
     new URL("../src/components/board/CardModal.tsx", import.meta.url),
     "utf8",
   );
 
   assert.doesNotMatch(source, /import ReactMarkdown/);
-  assert.match(source, /import \{ MarkdownContent \} from "\.\/MarkdownContent"/);
-  assert.equal(source.match(/<MarkdownContent>/g)?.length, 2);
-  assert.match(source, /<MarkdownContent>\{c\.body\}<\/MarkdownContent>/);
+  assert.match(source, /import \{ EditableMarkdown \} from "\.\/EditableMarkdown"/);
+  assert.equal(source.match(/<EditableMarkdown/g)?.length, 3);
+  assert.match(source, /value=\{title\}[\s\S]*inline[\s\S]*ariaLabel="Edit card title"/);
+  assert.match(source, /value=\{desc\}[\s\S]*multiline[\s\S]*editWhenEmpty/);
+  assert.match(source, /value=\{c\.body\}[\s\S]*multiline/);
+  assert.match(source, /store\.updateComment\(card\.id, c\.id, body\)/);
 });
 
 test("the shared Markdown surface has visible themed typography", async () => {
@@ -139,59 +140,6 @@ test("rule-driven card moves and due dates expose themed motion feedback", async
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /\.flowmark-rule-card-arrival/);
   assert.match(styles, /\.flowmark-rule-due-pulse/);
-});
-
-test("Command+Enter in the description prevents a newline and saves the card", async () => {
-  const calls: string[] = [];
-
-  const handled = await submitDescriptionOnShortcut(
-    {
-      key: "Enter",
-      metaKey: true,
-      ctrlKey: false,
-      preventDefault: () => calls.push("prevent"),
-    },
-    async () => {
-      calls.push("save");
-    },
-  );
-
-  assert.equal(handled, true);
-  assert.deepEqual(calls, ["prevent", "save"]);
-});
-
-test("description shortcut ignores ordinary Enter and Ctrl+Enter", async () => {
-  let saves = 0;
-  const save = async () => {
-    saves++;
-  };
-
-  assert.equal(
-    await submitDescriptionOnShortcut(
-      { key: "Enter", metaKey: false, ctrlKey: false, preventDefault: () => undefined },
-      save,
-    ),
-    false,
-  );
-  assert.equal(
-    await submitDescriptionOnShortcut(
-      { key: "Enter", metaKey: false, ctrlKey: true, preventDefault: () => undefined },
-      save,
-    ),
-    false,
-  );
-  assert.equal(saves, 0);
-});
-
-test("description editor grows with long Markdown content", () => {
-  const editor = {
-    scrollHeight: 420,
-    style: { height: "180px" },
-  };
-
-  resizeDescriptionEditor(editor);
-
-  assert.equal(editor.style.height, "420px");
 });
 
 test("card close updates and flushes the filesystem before closing", async () => {

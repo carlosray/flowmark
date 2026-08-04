@@ -1,5 +1,5 @@
 import type { Root } from "mdast";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 
 type MarkdownNode = {
   type: string;
@@ -72,21 +72,34 @@ export function remarkBareLinks() {
   return (tree: Root) => transformTextNodes(tree as unknown as MarkdownNode);
 }
 
+const markdownComponents = {
+  a: ({ node: _node, ...props }) => (
+    <a
+      {...props}
+      target="_blank"
+      rel="noopener noreferrer"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      className="font-medium text-primary underline decoration-primary/50 underline-offset-2 transition-colors hover:text-primary/80 hover:decoration-primary"
+    />
+  ),
+} satisfies Components;
+
 export function MarkdownContent({ children }: { children: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkBareLinks]} components={markdownComponents}>
+      {children}
+    </ReactMarkdown>
+  );
+}
+
+export function MarkdownInline({ children }: { children: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkBareLinks]}
-      components={{
-        a: ({ node: _node, ...props }) => (
-          <a
-            {...props}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => event.stopPropagation()}
-            className="font-medium text-primary underline decoration-primary/50 underline-offset-2 transition-colors hover:text-primary/80 hover:decoration-primary"
-          />
-        ),
-      }}
+      components={markdownComponents}
+      allowedElements={["a", "strong", "em", "del", "code", "br"]}
+      unwrapDisallowed
     >
       {children}
     </ReactMarkdown>

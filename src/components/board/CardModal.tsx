@@ -2,17 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { store, useBoard, useBoardSync } from "@/lib/store";
 import { rulesStore } from "@/lib/rules";
-import {
-  hasMoreScrollableContent,
-  resizeDescriptionEditor,
-  saveCardContentBeforeClose,
-  submitDescriptionOnShortcut,
-} from "@/lib/card-modal-state";
+import { hasMoreScrollableContent, saveCardContentBeforeClose } from "@/lib/card-modal-state";
 import type { Card } from "@/lib/types";
 import { TagPill } from "./TagPill";
 import { TagPicker } from "./TagPicker";
 import { DueDatePicker } from "./DueDatePicker";
-import { MarkdownContent } from "./MarkdownContent";
+import { EditableMarkdown } from "./EditableMarkdown";
 import { ChecklistItemText } from "./ChecklistItemText";
 import {
   CheckSquare,
@@ -21,7 +16,6 @@ import {
   Tag as TagIcon,
   Trash2,
   X,
-  Eye,
   Pencil,
   CheckCircle2,
   ChevronDown,
@@ -139,21 +133,11 @@ function CardEditor({
 
   const filePath = sync.filePath ? `${sync.filePath}/cards/${card.id}.md` : `cards/${card.id}.md`;
 
-  const [descMode, setDescMode] = useState<"edit" | "preview">(
-    card.description ? "preview" : "edit",
-  );
   const [newItem, setNewItem] = useState("");
   const [newComment, setNewComment] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [showScrollCue, setShowScrollCue] = useState(false);
-
-  useEffect(() => {
-    if (descMode === "edit" && descriptionRef.current) {
-      resizeDescriptionEditor(descriptionRef.current);
-    }
-  }, [desc, descMode]);
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current;
@@ -185,27 +169,22 @@ function CardEditor({
         >
           {card.completed && <CheckCircle2 size={14} />}
         </button>
-        <textarea
+        <EditableMarkdown
           value={title}
-          onChange={(e) => onTitleChange(e.target.value.replace(/\n/g, ""))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              if (title.trim() && title !== card.title) {
-                store.updateCard(card.id, { title: title.trim() });
-              }
-              (e.currentTarget as HTMLTextAreaElement).blur();
-            }
+          onDraftChange={(value) => onTitleChange(value.replace(/\n/g, ""))}
+          onSave={(value) => {
+            if (value !== card.title) store.updateCard(card.id, { title: value });
           }}
-          onBlur={() =>
-            title.trim() &&
-            title !== card.title &&
-            store.updateCard(card.id, { title: title.trim() })
-          }
-          rows={1}
-          className={cn(
-            "flex-1 bg-transparent text-lg font-semibold outline-none resize-none border-b border-transparent focus:border-primary/40 pb-1",
+          normalizeValue={(value) => value.replace(/\n/g, "").trim() || "Untitled"}
+          inline
+          ariaLabel="Edit card title"
+          previewClassName={cn(
+            "overflow-wrap-anywhere min-w-0 flex-1 rounded px-1 pb-1 text-lg font-semibold hover:bg-surface-hover",
             card.completed && "line-through text-muted-foreground",
+          )}
+          editorClassName={cn(
+            "min-w-0 flex-1 text-lg font-semibold",
+            card.completed && "text-muted-foreground line-through",
           )}
         />
       </div>
@@ -238,51 +217,22 @@ function CardEditor({
 
             {/* Description */}
             <section>
-              <SectionHeader
-                icon={<Pencil size={13} />}
-                title="Description"
-                action={
-                  <button
-                    onClick={() => setDescMode(descMode === "edit" ? "preview" : "edit")}
-                    className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                  >
-                    {descMode === "edit" ? (
-                      <>
-                        <Eye size={11} /> Preview
-                      </>
-                    ) : (
-                      <>
-                        <Pencil size={11} /> Edit
-                      </>
-                    )}
-                  </button>
-                }
-              />
-              {descMode === "edit" ? (
-                <textarea
-                  ref={descriptionRef}
-                  value={desc}
-                  onChange={(e) => onDescChange(e.target.value)}
-                  onKeyDown={(event) => void submitDescriptionOnShortcut(event, onSaveAndClose)}
-                  onBlur={() =>
-                    desc !== card.description && store.updateCard(card.id, { description: desc })
+              <SectionHeader icon={<Pencil size={13} />} title="Description" />
+              <EditableMarkdown
+                value={desc}
+                onDraftChange={onDescChange}
+                onSave={(description) => {
+                  if (description !== card.description) {
+                    store.updateCard(card.id, { description });
                   }
-                  rows={5}
-                  placeholder="Write in Markdown…"
-                  className="min-h-[180px] w-full resize-none overflow-hidden rounded-md border border-border bg-surface-sunken p-3 font-mono text-[13px] outline-none focus:border-primary/60"
-                />
-              ) : (
-                <div
-                  onClick={() => setDescMode("edit")}
-                  className="prose-flow min-h-[180px] cursor-text rounded-md border border-border bg-surface-sunken p-4 text-sm text-foreground/90"
-                >
-                  {desc ? (
-                    <MarkdownContent>{desc}</MarkdownContent>
-                  ) : (
-                    <span className="text-muted-foreground italic">Add a description…</span>
-                  )}
-                </div>
-              )}
+                }}
+                multiline
+                editWhenEmpty
+                ariaLabel="Edit card description"
+                placeholder="Add a description…"
+                previewClassName="prose-flow min-h-[180px] rounded-md border border-border bg-surface-sunken p-4 text-sm text-foreground/90"
+                editorClassName="min-h-[180px]"
+              />
             </section>
 
             {/* Checklist */}
@@ -372,9 +322,15 @@ function CardEditor({
                         <X size={11} />
                       </button>
                     </div>
-                    <div className="prose-flow text-sm text-foreground/90">
-                      <MarkdownContent>{c.body}</MarkdownContent>
-                    </div>
+                    <EditableMarkdown
+                      value={c.body}
+                      onSave={(body) => store.updateComment(card.id, c.id, body)}
+                      normalizeValue={(body) => body.trim() || c.body}
+                      multiline
+                      ariaLabel="Edit comment"
+                      previewClassName="prose-flow rounded px-1 py-0.5 text-sm text-foreground/90 hover:bg-surface-hover"
+                      editorClassName="min-h-[96px]"
+                    />
                   </div>
                 ))}
                 <form

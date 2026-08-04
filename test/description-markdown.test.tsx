@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -17,6 +18,16 @@ test("renders Markdown links as highlighted safe new-tab links", () => {
   assert.match(html, /text-primary/);
   assert.match(html, /underline/);
   assert.match(html, />the guide<\/a>/);
+});
+
+test("Markdown links isolate pointer and click events from editing and dragging parents", async () => {
+  const source = await readFile(
+    new URL("../src/components/board/MarkdownContent.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /onPointerDown=\{[^}]*stopPropagation/);
+  assert.match(source, /onClick=\{[^}]*stopPropagation/);
 });
 
 test("neutralizes unsafe Markdown link protocols", () => {

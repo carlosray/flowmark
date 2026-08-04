@@ -620,6 +620,10 @@ html[data-theme="rose-pine"] {
   overflow-wrap: anywhere;
 }
 
+.overflow-wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+
 .prose-flow > :first-child {
   margin-top: 0;
 }
