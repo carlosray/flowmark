@@ -30,7 +30,6 @@ import { ColumnView } from "./ColumnView";
 import { CardModal } from "./CardModal";
 import { ManageTagsButton } from "./TagPicker";
 import { RulesButton } from "./RulesButton";
-import { StorageInfo } from "./StorageInfo";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import flowmarkIcon from "@/assets/flowmark-icon.png";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -405,12 +404,12 @@ export function Board({
         <span className="hidden sm:inline-flex items-center gap-1">
           <span className="ds-kbd">Esc</span> close
         </span>
-        <div className="ml-auto flex items-center gap-3 min-w-0">
-          <span className="truncate hidden md:inline">
-            Local-first · Markdown files as source of truth
-          </span>
-          <StorageInfo />
-        </div>
+        <code
+          className="ml-auto min-w-0 truncate font-mono text-[11px]"
+          title={sync.filePath ?? "…"}
+        >
+          {sync.filePath ?? "…"}
+        </code>
       </footer>
 
       <CardModal

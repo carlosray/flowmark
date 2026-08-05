@@ -45,7 +45,7 @@ Remove the `StorageInfo` import and component. Replace the right-side footer
 group with a truncated monospace `code` element whose content and `title` use:
 
 ```tsx
-sync.filePath ?? "…"
+sync.filePath ?? "…";
 ```
 
 Keep the keyboard shortcut hints unchanged.
