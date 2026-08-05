@@ -56,6 +56,7 @@ export interface CliOptions {
   probeSession?: (session: FlowmarkSession) => Promise<boolean>;
   requestSessionStop?: (session: FlowmarkSession) => Promise<void>;
   launchDaemon?: (options: DaemonLaunchOptions) => Promise<DaemonLaunchResult | void>;
+  runUpdate?: () => Promise<{ asset: string; executablePath: string; warning?: string }>;
   sessionPollIntervalMs?: number;
   sessionReadyTimeoutMs?: number;
   write?: (message: string) => void;
@@ -73,6 +74,7 @@ Commands:
   flowmark list         List running Flowmark UI sessions
   flowmark stop <id>    Stop one running Flowmark UI session
   flowmark init         Create or verify a Flowmark workspace
+  flowmark update       Install the latest release over this executable
   flowmark validate     Validate source files without changing them
   flowmark repair       Rebuild disposable .flowmark runtime directories
   flowmark schema       List component schemas
@@ -273,12 +275,43 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
   const commandIndex = args.indexOf(command);
   const strict = args.includes("--strict");
   if (
-    !["serve", "init", "validate", "repair", "schema", "list", "stop", "__session"].includes(
-      command,
-    )
+    ![
+      "serve",
+      "init",
+      "update",
+      "validate",
+      "repair",
+      "schema",
+      "list",
+      "stop",
+      "__session",
+    ].includes(command)
   ) {
     write(`Unknown command: ${command}\n\n${HELP_TEXT}`);
     return { exitCode: 2 };
+  }
+  if (command === "update") {
+    if (args.some((_, index) => index !== commandIndex)) {
+      write("Usage: flowmark update");
+      return { exitCode: 2 };
+    }
+    if (!options.runUpdate) {
+      write(
+        "This Flowmark command is running from a source checkout and cannot update itself. Run git pull, then rebuild the standalone binary with `bun run binary`.",
+      );
+      return { exitCode: 1 };
+    }
+    try {
+      const result = await options.runUpdate();
+      write(`Updated Flowmark using ${result.asset}.`);
+      write(`Executable: ${result.executablePath}`);
+      if (result.warning) write(`Warning: ${result.warning}`);
+      write("Restart any running Flowmark sessions to use the updated executable.");
+      return { exitCode: 0 };
+    } catch (error) {
+      write(error instanceof Error ? error.message : String(error));
+      return { exitCode: 1 };
+    }
   }
   if (command === "list") {
     try {

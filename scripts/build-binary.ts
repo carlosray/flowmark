@@ -88,7 +88,7 @@ export function generateReleaseEntry(assets: PublicAsset[]) {
     .join("\n");
 
   return `import { spawn } from "node:child_process";
-import { mkdir, open } from "node:fs/promises";
+import { mkdir, open, realpath } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname } from "node:path";
 
@@ -96,6 +96,7 @@ import nitroHandler from "../.output/server/index.mjs";
 import { runCli } from "../src/cli.ts";
 import type { DaemonLaunchOptions } from "../src/cli.ts";
 import { isAllowedLoopbackRequest } from "../src/lib/local-web-server.ts";
+import { updateFlowmark } from "../src/lib/self-update.ts";
 ${imports}
 
 const embeddedAssets = new Map<string, { file: string; type: string }>([
@@ -193,7 +194,12 @@ async function launchDaemon(options: DaemonLaunchOptions) {
   }
 }
 
-const result = await runCli(process.argv.slice(2), { startWebServer, launchDaemon });
+const result = await runCli(process.argv.slice(2), {
+  startWebServer,
+  launchDaemon,
+  runUpdate: async () =>
+    updateFlowmark({ executablePath: await realpath(process.execPath) }),
+});
 process.exitCode = result.exitCode;
 `;
 }

@@ -251,6 +251,14 @@ test("README leads with agent-native workflows and a one-line verified installer
   assert.doesNotMatch(installerSource, /\bsudo\b/);
 });
 
+test("README documents native updates as the only normal networked command", async () => {
+  const readme = await readFile(join(root, "README.md"), "utf8");
+
+  assert.match(readme, /flowmark update/);
+  assert.match(readme, /only normal Flowmark command that (requires|uses).*network/i);
+  assert.match(readme, /restart\s+any\s+running\s+Flowmark\s+sessions/i);
+});
+
 test("type checking covers release scripts and tests", async () => {
   const tsconfig = await readFile(join(root, "tsconfig.json"), "utf8");
   assert.match(tsconfig, /scripts\/\*\*\/\*\.ts/);

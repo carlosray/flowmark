@@ -697,8 +697,84 @@ test("help flags and help command describe the supported CLI", async () => {
     assert.match(output.join("\n"), /flowmark init/);
     assert.match(output.join("\n"), /flowmark validate/);
     assert.match(output.join("\n"), /flowmark schema/);
+    assert.match(output.join("\n"), /flowmark update/);
     assert.doesNotMatch(output.join("\n"), /flowmark migrate/);
   }
+});
+
+test("update works outside a workspace and reports the replaced executable", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-update-cli-"));
+  const output: string[] = [];
+  let calls = 0;
+  try {
+    const result = await runCli(["update"], {
+      cwd: root,
+      runUpdate: async () => {
+        calls++;
+        return {
+          asset: "flowmark-darwin-arm64.tar.gz",
+          executablePath: "/custom/bin/flowmark",
+        };
+      },
+      write: (message) => output.push(message),
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(calls, 1);
+    assert.match(output.join("\n"), /updated flowmark/i);
+    assert.match(output.join("\n"), /\/custom\/bin\/flowmark/);
+    assert.match(output.join("\n"), /restart.*sessions/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("update refuses source mode without validating the current directory", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-update-source-"));
+  const output: string[] = [];
+  try {
+    const result = await runCli(["update"], {
+      cwd: root,
+      write: (message) => output.push(message),
+    });
+
+    assert.equal(result.exitCode, 1);
+    assert.match(output.join("\n"), /source checkout/i);
+    assert.match(output.join("\n"), /git pull/i);
+    assert.doesNotMatch(output.join("\n"), /cannot update bun/i);
+    assert.doesNotMatch(output.join("\n"), /workspace validation/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("update rejects arguments instead of silently installing a different request", async () => {
+  const output: string[] = [];
+  let calls = 0;
+  const result = await runCli(["update", "v9.9.9"], {
+    runUpdate: async () => {
+      calls++;
+      return { asset: "unused", executablePath: "unused" };
+    },
+    write: (message) => output.push(message),
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.equal(calls, 0);
+  assert.match(output.join("\n"), /usage: flowmark update/i);
+});
+
+test("update reports download or installation failures without throwing", async () => {
+  const output: string[] = [];
+  const result = await runCli(["update"], {
+    runUpdate: async () => {
+      throw new Error("Checksum verification failed for release archive.");
+    },
+    write: (message) => output.push(message),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(output.join("\n"), "Checksum verification failed for release archive.");
 });
 
 test("schema command lists and renders component contracts without a workspace", async () => {

@@ -114,6 +114,17 @@ downloads the matching archive, verifies it against the release's
 flowmark --help
 ```
 
+Update an existing standalone installation to the latest stable release:
+
+```sh
+flowmark update
+```
+
+This is the only normal Flowmark command that uses network access. It downloads
+the matching release, verifies its SHA-256 checksum, and atomically replaces the
+currently running executable. After updating, restart any running Flowmark
+sessions so they use the new binary.
+
 Choose another directory or pin a release:
 
 ```sh
@@ -168,7 +179,8 @@ bun install
 bun link
 ```
 
-Flowmark does not require network access after installation.
+Flowmark does not require network access after installation unless you
+explicitly run `flowmark update`.
 
 ## Quick start
 

@@ -108,6 +108,14 @@ export async function smokeBinary(args = process.argv.slice(2)) {
     await cp(sourceBinary, standaloneBinary);
     await chmod(standaloneBinary, 0o755);
 
+    const help = await run(standaloneBinary, ["--help"], {
+      cwd: root,
+      env,
+    });
+    if (!help.stdout.includes("flowmark update")) {
+      throw new Error(`Standalone help does not expose the update command:\n${help.stdout}`);
+    }
+
     const initialized = await run(standaloneBinary, ["init"], {
       cwd: workspace,
       env,

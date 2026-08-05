@@ -12,6 +12,7 @@ import {
 } from "../scripts/build-binary.ts";
 import { extractAssetPath, extractDaemonDetails } from "../scripts/smoke-binary.ts";
 import { isAllowedLoopbackRequest } from "../src/lib/local-web-server.ts";
+import { releaseAssetName } from "../src/lib/self-update.ts";
 
 test("release artifact names are stable for native and cross targets", () => {
   assert.equal(releaseArtifactName(), "flowmark");
@@ -19,6 +20,16 @@ test("release artifact names are stable for native and cross targets", () => {
   assert.equal(releaseArtifactName("bun-darwin-x64"), "flowmark-darwin-x64");
   assert.equal(releaseArtifactName("bun-linux-x64"), "flowmark-linux-x64");
   assert.throws(() => releaseArtifactName("bun-windows-x64"), /unsupported release target/i);
+});
+
+test("updater asset selection stays aligned with binary release targets", () => {
+  for (const [target, platform, architecture] of [
+    ["bun-darwin-arm64", "darwin", "arm64"],
+    ["bun-darwin-x64", "darwin", "x64"],
+    ["bun-linux-x64", "linux", "x64"],
+  ] as const) {
+    assert.equal(releaseAssetName(platform, architecture), `${releaseArtifactName(target)}.tar.gz`);
+  }
 });
 
 test("embedded public assets are sorted and retain their public URL and MIME type", async () => {
@@ -65,6 +76,13 @@ test("generated entry is loopback-only, embeds assets, and injects release adapt
   assert.match(source, /hostname:\s*"127\.0\.0\.1"/);
   assert.match(source, /startWebServer/);
   assert.match(source, /launchDaemon/);
+  assert.match(source, /import \{[^}]*realpath[^}]*\} from "node:fs\/promises"/);
+  assert.match(source, /import \{ updateFlowmark \} from "\.\.\/src\/lib\/self-update\.ts"/);
+  assert.match(source, /runUpdate:\s*async \(\)\s*=>/);
+  assert.match(
+    source,
+    /updateFlowmark\(\{ executablePath: await realpath\(process\.execPath\) \}\)/,
+  );
   assert.match(source, /FLOWMARK_WORKSPACE_ROOT/);
   assert.match(source, /isAllowedLoopbackRequest/);
   assert.match(source, /\/assets\/app\.js/);
