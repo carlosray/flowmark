@@ -13,6 +13,7 @@ dist-ssr
 .output
 .flowmark-build/
 .playwright-cli/
+.worktrees/
 .vinxi
 .tanstack/**
 .nitro
