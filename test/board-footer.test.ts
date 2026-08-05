@@ -7,9 +7,11 @@ test("board footer shows only the absolute workspace path as plain text", async 
     new URL("../src/components/board/Board.tsx", import.meta.url),
     "utf8",
   );
+  const footerSource = boardSource.match(/<footer[\s\S]*?<\/footer>/)?.[0];
 
-  assert.match(boardSource, /<code[^>]*title=\{sync\.filePath \?\? "…"\}[^>]*>/);
-  assert.match(boardSource, /\{sync\.filePath \?\? "…"\}\s*<\/code>/);
-  assert.doesNotMatch(boardSource, /StorageInfo/);
-  assert.doesNotMatch(boardSource, /Local-first|Markdown files as source of truth/);
+  assert.ok(footerSource);
+  assert.match(footerSource, /<code[^>]*title=\{sync\.filePath \?\? "…"\}[^>]*>/);
+  assert.match(footerSource, /\{sync\.filePath \?\? "…"\}\s*<\/code>/);
+  assert.doesNotMatch(footerSource, /<button|StorageInfo/);
+  assert.doesNotMatch(footerSource, /Local-first|Markdown files as source of truth/);
 });
