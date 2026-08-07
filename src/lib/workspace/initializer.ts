@@ -51,7 +51,7 @@ export const FLOWMARK_AGENT_GUIDANCE = `# Flowmark task-management rules
 - Always mention a card with its repository-relative source path, for example \`cards/<card_id>.md\`.
 - While the marker above is \`ask\`, use only the source path. The first time you would report a card to the user, ask whether future responses should also include a link to the locally running Flowmark card.
 - After the user answers, replace only \`ask\` in the marker with \`always\` or \`never\`. Do not ask again while either permanent value is present.
-- With \`always\`, keep the source path and also run \`flowmark link <card_id> --format markdown\` from the workspace root, then include its output. Never construct or hardcode the host or port yourself.
+- With \`always\`, keep the source path and also run \`flowmark link <card_id>\` from the workspace root, then include its output. Never construct or hardcode the host or port yourself.
 - With \`never\`, keep using only the source path.
 - If link generation fails because Flowmark is not running, report the source path and the failure briefly instead of omitting the card reference.
 

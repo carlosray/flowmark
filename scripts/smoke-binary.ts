@@ -204,6 +204,9 @@ export async function smokeBinary(args = process.argv.slice(2)) {
     ) {
       throw new Error("Initialized AGENTS.md does not explain opt-in live card links.");
     }
+    if (agents.includes("flowmark link <card_id> --format markdown")) {
+      throw new Error("Initialized AGENTS.md freezes the old Markdown card-link format.");
+    }
     console.log(`Standalone binary smoke test passed: ${details.url}`);
   } finally {
     if (sessionId) {

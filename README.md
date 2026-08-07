@@ -212,8 +212,16 @@ Flowmark can generate a link for an active card without hardcoding the UI port:
 
 ```sh
 flowmark link card_example
+flowmark link card_example --format terminal
+flowmark link card_example --format raw
 flowmark link card_example --format markdown
 ```
+
+The default and explicit `terminal` formats emit the same OSC 8 hyperlink,
+labeled `Open in Flowmark`. In Ghostty on macOS, open it with `Cmd+click`.
+`terminal` remains the default even when output is redirected; scripts should
+request `--format raw`, while Markdown renderers should request
+`--format markdown`.
 
 The command validates the card and resolves the live session for the current
 workspace. Generated `AGENTS.md` guidance starts with paths only, asks once
