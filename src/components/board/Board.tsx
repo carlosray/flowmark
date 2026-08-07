@@ -38,7 +38,7 @@ import type { Card } from "@/lib/types";
 import { dueState } from "@/lib/due";
 import type { ThemeId } from "@/lib/themes";
 import { checklistExpansionStore } from "@/lib/checklist-expansion";
-import { matchesTagFilter } from "@/lib/board-filters";
+import { matchesCardSearch, matchesTagFilter } from "@/lib/board-filters";
 import { reloadWithMinimumFeedback } from "@/lib/reload-feedback";
 import { MarkdownInline } from "./MarkdownContent";
 
@@ -123,15 +123,7 @@ export function Board({
     return (cardId: string): boolean => {
       const c: Card | undefined = board.cards[cardId];
       if (!c) return false;
-      if (query) {
-        const q = query.toLowerCase();
-        const matches =
-          c.title.toLowerCase().includes(q) ||
-          c.description.toLowerCase().includes(q) ||
-          c.checklist.some((i) => i.text.toLowerCase().includes(q)) ||
-          c.comments.some((m) => m.body.toLowerCase().includes(q));
-        if (!matches) return false;
-      }
+      if (!matchesCardSearch(c, query)) return false;
       if (tagFilter.length > 0) {
         if (!matchesTagFilter(c.tagIds, tagFilter)) return false;
       }

@@ -2,8 +2,74 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { matchesTagFilter } from "../src/lib/board-filters.ts";
+import { matchesCardSearch, matchesTagFilter } from "../src/lib/board-filters.ts";
 import { reloadWithMinimumFeedback } from "../src/lib/reload-feedback.ts";
+import type { Card } from "../src/lib/types.ts";
+
+const searchableCard: Card = {
+  id: "card_gycbfxxzw5au",
+  title: "Ordinary title with titleid00001",
+  description: "Useful description with descid000001",
+  dueDate: null,
+  checklist: [{ id: "item_search", text: "Checklist needle checkid00001", done: false }],
+  comments: [
+    {
+      id: "comment_search",
+      body: "Comment needle commid000001",
+      createdAt: "2026-08-07T00:00:00.000Z",
+    },
+  ],
+  tagIds: [],
+  completed: false,
+  completedAt: null,
+  createdAt: "2026-08-07T00:00:00.000Z",
+  updatedAt: "2026-08-07T00:00:00.000Z",
+};
+
+test("card search matches exact full and generated-suffix IDs case-insensitively", () => {
+  assert.equal(matchesCardSearch(searchableCard, "gycbfxxzw5au"), true);
+  assert.equal(matchesCardSearch(searchableCard, "card_gycbfxxzw5au"), true);
+  assert.equal(matchesCardSearch(searchableCard, "GYCBFXXZW5AU"), true);
+  assert.equal(matchesCardSearch(searchableCard, "CARD_GYCBFXXZW5AU"), true);
+});
+
+test("card search rejects partial or different IDs", () => {
+  assert.equal(matchesCardSearch(searchableCard, "gycbfxxzw5a"), false);
+  assert.equal(matchesCardSearch(searchableCard, "card_gycbfxxzw5a"), false);
+  assert.equal(matchesCardSearch(searchableCard, "zzzzzzzzzzzz"), false);
+});
+
+test("card search preserves ordinary case-insensitive prose search", () => {
+  assert.equal(matchesCardSearch(searchableCard, "ORDINARY TITLE"), true);
+  assert.equal(matchesCardSearch(searchableCard, "USEFUL DESCRIPTION"), true);
+  assert.equal(matchesCardSearch(searchableCard, "CHECKLIST NEEDLE"), true);
+  assert.equal(matchesCardSearch(searchableCard, "COMMENT NEEDLE"), true);
+  assert.equal(matchesCardSearch(searchableCard, ""), true);
+});
+
+test("ID-shaped queries search only the card ID, not prose", () => {
+  assert.equal(matchesCardSearch(searchableCard, "titleid00001"), false);
+  assert.equal(matchesCardSearch(searchableCard, "descid000001"), false);
+  assert.equal(matchesCardSearch(searchableCard, "checkid00001"), false);
+  assert.equal(matchesCardSearch(searchableCard, "commid000001"), false);
+});
+
+test("the board delegates search matching to the shared helper", async () => {
+  const boardSource = await readFile(
+    new URL("../src/components/board/Board.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    boardSource,
+    /import \{ matchesCardSearch, matchesTagFilter \} from "@\/lib\/board-filters";/,
+  );
+  assert.match(boardSource, /if \(!matchesCardSearch\(c, query\)\) return false;/);
+  assert.doesNotMatch(boardSource, /c\.title\.toLowerCase\(\)\.includes/);
+  assert.doesNotMatch(boardSource, /c\.description\.toLowerCase\(\)\.includes/);
+  assert.doesNotMatch(boardSource, /c\.checklist\.some/);
+  assert.doesNotMatch(boardSource, /c\.comments\.some/);
+});
 
 test("tag filtering uses AND semantics and is neutral when no tags are selected", () => {
   assert.equal(matchesTagFilter(["tag_work"], []), true);
