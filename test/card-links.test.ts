@@ -4,9 +4,18 @@ import test from "node:test";
 import {
   buildFlowmarkCardUrl,
   buildSessionCardUrl,
+  CARD_LINK_FORMATS,
   formatFlowmarkCardLink,
+  isCardLinkFormat,
   parseFlowmarkCardUrl,
 } from "../src/lib/card-links.ts";
+
+test("recognizes card link formats from the shared format list", () => {
+  assert.deepEqual(CARD_LINK_FORMATS, ["terminal", "raw", "markdown"]);
+  assert.equal(isCardLinkFormat("terminal"), true);
+  assert.equal(isCardLinkFormat("html"), false);
+  assert.equal(isCardLinkFormat(undefined), false);
+});
 
 test("formats card links for terminal, raw, and Markdown output", () => {
   const url = "flowmark://open?workspace=%2Ftmp%2Ftasks&card=card_example";

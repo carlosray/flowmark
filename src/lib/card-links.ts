@@ -1,8 +1,12 @@
 const CARD_ID_PATTERN = /^card_[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
-export type CardLinkFormat = "terminal" | "raw" | "markdown";
+export const CARD_LINK_FORMATS = ["terminal", "raw", "markdown"] as const;
 
-export const CARD_LINK_FORMATS: readonly CardLinkFormat[] = ["terminal", "raw", "markdown"];
+export type CardLinkFormat = (typeof CARD_LINK_FORMATS)[number];
+
+export function isCardLinkFormat(value: unknown): value is CardLinkFormat {
+  return CARD_LINK_FORMATS.some((format) => format === value);
+}
 
 export function formatFlowmarkCardLink(url: string, format: CardLinkFormat) {
   if (format === "terminal") {

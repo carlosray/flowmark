@@ -35,8 +35,8 @@ import type { StartLocalWebServer } from "./lib/local-web-server.ts";
 import {
   buildFlowmarkCardUrl,
   CARD_LINK_FORMATS,
-  type CardLinkFormat,
   formatFlowmarkCardLink,
+  isCardLinkFormat,
   parseFlowmarkCardUrl,
 } from "./lib/card-links.ts";
 import { openCardInSafari as openCardInSafariDefault } from "./lib/macos-card-link-handler.ts";
@@ -110,6 +110,8 @@ Usage:
   flowmark schema rule
   flowmark schema card --format json
   flowmark schema --all --format yaml`;
+
+const CARD_LINK_FORMAT_LIST = `${CARD_LINK_FORMATS.slice(0, -1).join(", ")}, or ${CARD_LINK_FORMATS.at(-1)}`;
 
 function formatDiagnostic(diagnostic: Diagnostic) {
   return [
@@ -289,9 +291,10 @@ async function linkCard(
     write("Usage: flowmark link <card-id> [--format terminal|raw|markdown]");
     return { exitCode: 2 };
   }
-  const format = flagValue(args, "--format") ?? "terminal";
-  if (!CARD_LINK_FORMATS.includes(format as CardLinkFormat)) {
-    write("Unknown card link format. Use terminal, raw, or markdown.");
+  const formatIndex = args.indexOf("--format");
+  const format = formatIndex < 0 ? "terminal" : args[formatIndex + 1];
+  if (!isCardLinkFormat(format)) {
+    write(`Unknown card link format. Use ${CARD_LINK_FORMAT_LIST}.`);
     return { exitCode: 2 };
   }
 
@@ -323,7 +326,7 @@ async function linkCard(
   }
 
   const url = buildFlowmarkCardUrl(workspaceRoot, cardId);
-  write(formatFlowmarkCardLink(url, format as CardLinkFormat));
+  write(formatFlowmarkCardLink(url, format));
   return { exitCode: 0 };
 }
 

@@ -138,6 +138,17 @@ test("custom URL handling rejects malformed links before opening Safari", async 
   assert.match(output.join("\n"), /Invalid Flowmark card link/);
 });
 
+test("link rejects a missing format value before workspace validation", async () => {
+  const output: string[] = [];
+  const result = await runCli(["link", "card_review", "--format"], {
+    cwd: "/not-a-flowmark-workspace",
+    write: (line) => output.push(line),
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.deepEqual(output, ["Unknown card link format. Use terminal, raw, or markdown."]);
+});
+
 test("link prints terminal, raw, or Markdown custom URLs for an active card in a live workspace", async () => {
   const root = await mkdtemp(join(tmpdir(), "flowmark-cli-link-"));
   const registryPath = join(root, "global", "sessions.json");
