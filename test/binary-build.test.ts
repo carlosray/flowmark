@@ -79,6 +79,9 @@ test("generated entry is loopback-only, embeds assets, and injects release adapt
   assert.match(source, /import \{[^}]*realpath[^}]*\} from "node:fs\/promises"/);
   assert.match(source, /import \{ updateFlowmark \} from "\.\.\/src\/lib\/self-update\.ts"/);
   assert.match(source, /runUpdate:\s*async \(\)\s*=>/);
+  assert.match(source, /installMacosCardLinkHandler/);
+  assert.match(source, /openCardInSafari/);
+  assert.match(source, /installCardLinkHandler:\s*async \(\)\s*=>/);
   assert.match(
     source,
     /updateFlowmark\(\{ executablePath: await realpath\(process\.execPath\) \}\)/,
@@ -87,6 +90,9 @@ test("generated entry is loopback-only, embeds assets, and injects release adapt
   assert.match(source, /isAllowedLoopbackRequest/);
   assert.match(source, /\/assets\/app\.js/);
   assert.match(source, /flowmark-asset-0\.asset/);
+  assert.match(source, /preferredPort = 3000/);
+  assert.match(source, /EADDRINUSE/);
+  assert.match(source, /startEmbeddedServer\(workspaceRoot, 0\)/);
   assert.doesNotMatch(source, /0\.0\.0\.0/);
 });
 

@@ -866,6 +866,10 @@ test("init creates a minimal strictly valid workspace and agent guidance", async
     assert.match(agentGuidance, /flowmark schema --all/);
     assert.match(agentGuidance, /inspect.*schema.*before editing/i);
     assert.match(agentGuidance, /create, move, update, complete, and archive cards/i);
+    assert.match(agentGuidance, /flowmark-card-links: ask/);
+    assert.match(agentGuidance, /cards\/<card_id>\.md/);
+    assert.match(agentGuidance, /flowmark link <card_id> --format markdown/);
+    assert.match(agentGuidance, /replace.*ask.*always.*never/is);
     for (const directory of [
       "cards",
       "columns",

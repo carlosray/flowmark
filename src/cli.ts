@@ -32,6 +32,8 @@ import {
   runManagedSession,
 } from "./lib/session-supervisor.ts";
 import type { StartLocalWebServer } from "./lib/local-web-server.ts";
+import { buildFlowmarkCardUrl, parseFlowmarkCardUrl } from "./lib/card-links.ts";
+import { openCardInSafari as openCardInSafariDefault } from "./lib/macos-card-link-handler.ts";
 
 export { LOCAL_DEV_SERVER_ARGS } from "./lib/session-supervisor.ts";
 
@@ -57,6 +59,8 @@ export interface CliOptions {
   requestSessionStop?: (session: FlowmarkSession) => Promise<void>;
   launchDaemon?: (options: DaemonLaunchOptions) => Promise<DaemonLaunchResult | void>;
   runUpdate?: () => Promise<{ asset: string; executablePath: string; warning?: string }>;
+  installCardLinkHandler?: () => Promise<{ appPath: string }>;
+  openCardInSafari?: (sessionUrl: string, cardId: string) => Promise<void>;
   sessionPollIntervalMs?: number;
   sessionReadyTimeoutMs?: number;
   write?: (message: string) => void;
@@ -73,6 +77,10 @@ Commands:
   flowmark serve        Validate and start the local UI
   flowmark list         List running Flowmark UI sessions
   flowmark stop <id>    Stop one running Flowmark UI session
+  flowmark link <card-id>
+                        Print a live card link for this workspace
+  flowmark links install
+                        Install the macOS flowmark:// URL handler
   flowmark init         Create or verify a Flowmark workspace
   flowmark update       Install the latest release over this executable
   flowmark validate     Validate source files without changing them
@@ -86,6 +94,7 @@ Options:
   --strict              Treat unknown fields as validation errors
   --all                 Print every component schema
   --format yaml|json    Select schema output format (default: yaml)
+  --format raw|markdown Select card link output format (default: raw)
   -h, --help            Show this help`;
 
 const SCHEMA_HELP = `Available component schemas: ${COMPONENT_NAMES.join(", ")}
@@ -264,6 +273,109 @@ async function stopSession(
   return { exitCode: 0 };
 }
 
+async function linkCard(
+  cardId: string | undefined,
+  args: string[],
+  options: CliOptions,
+  write: (message: string) => void,
+) {
+  if (!cardId) {
+    write("Usage: flowmark link <card-id> [--format raw|markdown]");
+    return { exitCode: 2 };
+  }
+  const format = flagValue(args, "--format") ?? "raw";
+  if (format !== "raw" && format !== "markdown") {
+    write("Unknown card link format. Use raw or markdown.");
+    return { exitCode: 2 };
+  }
+
+  let workspaceRoot: string;
+  try {
+    workspaceRoot = await canonicalizeWorkspacePath(options.cwd ?? process.cwd());
+  } catch {
+    write("Current directory is not a Flowmark workspace. Run this command from its root.");
+    return { exitCode: 1 };
+  }
+  const validation = await validateWorkspace(workspaceRoot, { strict: true });
+  if (validation.errors.length > 0) {
+    reportDiagnostics([...validation.errors, ...validation.warnings], write);
+    return { exitCode: 1 };
+  }
+  const card = validation.workspace?.cards.get(cardId);
+  if (!card || card.archived) {
+    write(`No active Flowmark card with ID "${cardId}" exists in this workspace.`);
+    return { exitCode: 1 };
+  }
+
+  const sessions = await pruneStaleSessions({
+    registryPath: options.registryPath,
+    probe: options.probeSession ?? probeManagedSession,
+  });
+  if (!findSessionByWorkspace(sessions.sessions, workspaceRoot)) {
+    write("No running Flowmark session exists for this workspace. Start it with `flowmark`.");
+    return { exitCode: 1 };
+  }
+
+  const url = buildFlowmarkCardUrl(workspaceRoot, cardId);
+  write(format === "markdown" ? `[Open in Flowmark](${url})` : url);
+  return { exitCode: 0 };
+}
+
+async function installCardLinks(options: CliOptions, write: (message: string) => void) {
+  if (!options.installCardLinkHandler) {
+    write(
+      "Card link installation requires the standalone binary. Build it with `bun run binary`, then run `dist/flowmark links install`.",
+    );
+    return { exitCode: 1 };
+  }
+  const result = await options.installCardLinkHandler();
+  write(`Installed Flowmark card link handler: ${result.appPath}`);
+  write("The first card link may ask for permission to control Safari.");
+  return { exitCode: 0 };
+}
+
+async function openCardLink(
+  value: string | undefined,
+  options: CliOptions,
+  write: (message: string) => void,
+) {
+  if (!value) {
+    write("Internal Flowmark URL handler is missing its URL.");
+    return { exitCode: 2 };
+  }
+  const { workspacePath, cardId } = parseFlowmarkCardUrl(value);
+  let workspaceRoot: string;
+  try {
+    workspaceRoot = await canonicalizeWorkspacePath(workspacePath);
+  } catch {
+    write(`Flowmark workspace no longer exists: ${workspacePath}`);
+    return { exitCode: 1 };
+  }
+  const validation = await validateWorkspace(workspaceRoot, { strict: true });
+  if (validation.errors.length > 0) {
+    reportDiagnostics([...validation.errors, ...validation.warnings], write);
+    return { exitCode: 1 };
+  }
+  const card = validation.workspace?.cards.get(cardId);
+  if (!card || card.archived) {
+    write(`No active Flowmark card with ID "${cardId}" exists in ${workspaceRoot}.`);
+    return { exitCode: 1 };
+  }
+
+  const sessions = await pruneStaleSessions({
+    registryPath: options.registryPath,
+    probe: options.probeSession ?? probeManagedSession,
+  });
+  const session = findSessionByWorkspace(sessions.sessions, workspaceRoot);
+  if (!session) {
+    write(`No running Flowmark session exists for ${workspaceRoot}.`);
+    return { exitCode: 1 };
+  }
+
+  await (options.openCardInSafari ?? openCardInSafariDefault)(session.url, cardId);
+  return { exitCode: 0 };
+}
+
 export async function runCli(args: string[], options: CliOptions = {}): Promise<CliResult> {
   const cwd = options.cwd ?? process.cwd();
   const write = options.write ?? console.log;
@@ -284,6 +396,9 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
       "schema",
       "list",
       "stop",
+      "link",
+      "links",
+      "__open-url",
       "__session",
     ].includes(command)
   ) {
@@ -325,6 +440,35 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
     try {
       const id = args.slice(commandIndex + 1).find((argument) => !argument.startsWith("-"));
       return await stopSession(id, options, write);
+    } catch (error) {
+      write(error instanceof Error ? error.message : String(error));
+      return { exitCode: 1 };
+    }
+  }
+  if (command === "link") {
+    try {
+      const cardId = args.slice(commandIndex + 1).find((argument) => !argument.startsWith("-"));
+      return await linkCard(cardId, args, { ...options, cwd }, write);
+    } catch (error) {
+      write(error instanceof Error ? error.message : String(error));
+      return { exitCode: 1 };
+    }
+  }
+  if (command === "links") {
+    if (args[commandIndex + 1] !== "install" || args.length !== commandIndex + 2) {
+      write("Usage: flowmark links install");
+      return { exitCode: 2 };
+    }
+    try {
+      return await installCardLinks(options, write);
+    } catch (error) {
+      write(error instanceof Error ? error.message : String(error));
+      return { exitCode: 1 };
+    }
+  }
+  if (command === "__open-url") {
+    try {
+      return await openCardLink(args[commandIndex + 1], options, write);
     } catch (error) {
       write(error instanceof Error ? error.message : String(error));
       return { exitCode: 1 };

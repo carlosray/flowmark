@@ -120,7 +120,7 @@ Expected: all deep-link and existing modal tests pass.
 **Step 1: Write failing installer and Safari tests**
 
 Specify pure AppleScript source generation and injected command execution.
-Require installation to target a supplied user Applications directory, embed
+Require installation to target a supplied user runtime directory, embed
 the absolute Flowmark executable, register `flowmark` as a URL scheme, preserve
 unrelated files, and reject non-macOS platforms. Require open handling to probe
 the exact workspace session, construct the HTTP card URL, and invoke
@@ -134,14 +134,16 @@ Expected: fail because installer/open-handler APIs and CLI commands are absent.
 **Step 3: Implement explicit handler installation**
 
 Add `flowmark links install` and internal `flowmark __open-url <url>` commands.
-Build the handler under `~/Applications/Flowmark Card Links.app` with
+Build the handler under `~/.flowmark/apps/Flowmark Card Links.app` with
 `osacompile`, add the required `CFBundleURLTypes` metadata, and register it with
 LaunchServices. Use dependency injection for filesystem/process effects so
 tests run offline and without GUI automation.
 
 **Step 4: Implement Safari reuse**
 
-Run AppleScript that finds a Safari tab whose URL starts with the selected
+When an installed `~/Applications/FlowMark.app` has the same origin as the
+selected session, open the card in that single-window Safari Web App. Otherwise,
+run AppleScript that finds a Safari tab whose URL starts with the selected
 session URL, changes that tab to the HTTP card URL, selects its window/tab, and
 activates Safari. If no matching tab exists, open the URL in Safari. Report
 missing/stale sessions and malformed links without launching a browser.
@@ -194,7 +196,7 @@ Expected: initialization and custom-guidance preservation tests pass.
 
 **Files:**
 
-- Modify outside repository after build: `~/Applications/Flowmark Card Links.app`
+- Modify outside repository after build: `~/.flowmark/apps/Flowmark Card Links.app`
 - Modify outside repository: each live session workspace `AGENTS.md`
 
 **Step 1: Run focused and full repository gates**

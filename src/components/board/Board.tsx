@@ -43,6 +43,7 @@ import { reloadWithMinimumFeedback } from "@/lib/reload-feedback";
 import { MarkdownInline } from "./MarkdownContent";
 
 import { cn } from "@/lib/utils";
+import { resolveRequestedCardId } from "@/lib/card-deep-link";
 
 type DueFilter = "all" | "overdue" | "today" | "week" | "none";
 
@@ -51,9 +52,13 @@ type CompletedFilter = "all" | "open" | "done";
 export function Board({
   initialTheme,
   initialExpandedChecklistCardIds,
+  initialOpenCardId,
+  onOpenCardIdChange,
 }: {
   initialTheme: ThemeId;
   initialExpandedChecklistCardIds: string[];
+  initialOpenCardId?: string;
+  onOpenCardIdChange?: (cardId: string | null) => void;
 }) {
   const board = useBoard();
   const sync = useBoardSync();
@@ -67,7 +72,7 @@ export function Board({
 
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
-  const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [openCardId, setOpenCardId] = useState<string | null>(initialOpenCardId ?? null);
   const [draftCardId, setDraftCardId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -78,6 +83,17 @@ export function Board({
 
   const searchRef = useRef<HTMLInputElement>(null);
   const cardDragOriginRef = useRef<{ cardId: string; columnId: string } | null>(null);
+
+  const changeOpenCardId = (cardId: string | null) => {
+    setOpenCardId(cardId);
+    onOpenCardIdChange?.(cardId);
+  };
+
+  useEffect(() => {
+    const resolved = resolveRequestedCardId(initialOpenCardId ?? null, board.cards, sync.status);
+    setOpenCardId(resolved);
+    if (initialOpenCardId && resolved === null) onOpenCardIdChange?.(null);
+  }, [initialOpenCardId, board.cards, sync.status, onOpenCardIdChange]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -368,7 +384,7 @@ export function Board({
                 <ColumnView
                   key={col.id}
                   column={col}
-                  onOpenCard={setOpenCardId}
+                  onOpenCard={changeOpenCardId}
                   cardFilter={filterCard}
                 />
               ))}
@@ -416,11 +432,11 @@ export function Board({
         cardId={openCardId}
         isDraft={openCardId !== null && openCardId === draftCardId}
         onClose={() => {
-          setOpenCardId(null);
+          changeOpenCardId(null);
           setDraftCardId(null);
         }}
         onSaveDraft={() => {
-          setOpenCardId(null);
+          changeOpenCardId(null);
           setDraftCardId(null);
         }}
       />
@@ -433,7 +449,7 @@ export function Board({
           setPickerOpen(false);
           const id = store.addCard(columnId, "Untitled");
           setDraftCardId(id);
-          setOpenCardId(id);
+          changeOpenCardId(id);
         }}
       />
     </div>

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -32,6 +32,33 @@ function session(
   };
 }
 
+async function initializeWorkspaceWithCard(root: string) {
+  assert.equal((await runCli(["init"], { cwd: root, write: () => {} })).exitCode, 0);
+  await writeFile(
+    join(root, "cards/card_review.md"),
+    `---
+schema_version: 1
+id: card_review
+title: Review document
+column_id: column_inbox
+position: 1024
+completed: false
+completed_at: null
+due_at: null
+tag_ids: []
+checklist_ids: []
+comment_ids: []
+created_at: 2026-08-07T10:00:00Z
+updated_at: 2026-08-07T10:00:00Z
+archived_at: null
+---
+
+Review this card.
+`,
+    "utf8",
+  );
+}
+
 test("help documents daemon, list, and exact session stop commands", async () => {
   const output: string[] = [];
   assert.equal((await runCli(["--help"], { write: (line) => output.push(line) })).exitCode, 0);
@@ -40,6 +67,145 @@ test("help documents daemon, list, and exact session stop commands", async () =>
   assert.match(help, /flowmark \[serve\] --daemon/);
   assert.match(help, /flowmark list/);
   assert.match(help, /flowmark stop <id>/);
+  assert.match(help, /flowmark link <card-id>/);
+  assert.match(help, /flowmark links install/);
+});
+
+test("links install delegates explicit machine setup to the standalone adapter", async () => {
+  const output: string[] = [];
+  let installed = 0;
+  const result = await runCli(["links", "install"], {
+    installCardLinkHandler: async () => {
+      installed++;
+      return { appPath: "/Users/test/.flowmark/apps/Flowmark Card Links.app" };
+    },
+    write: (line) => output.push(line),
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(installed, 1);
+  assert.match(output.join("\n"), /Installed Flowmark card link handler/);
+  assert.match(output.join("\n"), /Flowmark Card Links\.app/);
+});
+
+test("source mode refuses machine-level link handler installation", async () => {
+  const output: string[] = [];
+  const result = await runCli(["links", "install"], { write: (line) => output.push(line) });
+  assert.equal(result.exitCode, 1);
+  assert.match(output.join("\n"), /standalone binary/);
+});
+
+test("custom URL handling resolves the exact live session and asks Safari to reuse it", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-cli-open-link-"));
+  const registryPath = join(root, "global", "sessions.json");
+  const opened: Array<{ sessionUrl: string; cardId: string }> = [];
+  try {
+    await initializeWorkspaceWithCard(root);
+    const canonicalRoot = await canonicalizeWorkspacePath(root);
+    await registerSession(session("session_live", canonicalRoot), { registryPath });
+    const url = `flowmark://open?workspace=${encodeURIComponent(canonicalRoot)}&card=card_review`;
+
+    const result = await runCli(["__open-url", url], {
+      cwd: "/outside/workspace",
+      registryPath,
+      probeSession: async () => true,
+      openCardInSafari: async (sessionUrl, cardId) => {
+        opened.push({ sessionUrl, cardId });
+      },
+      write: () => {},
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(opened, [{ sessionUrl: "http://127.0.0.1:4789/", cardId: "card_review" }]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("custom URL handling rejects malformed links before opening Safari", async () => {
+  const opened: string[] = [];
+  const output: string[] = [];
+  const result = await runCli(["__open-url", "flowmark://wrong"], {
+    openCardInSafari: async () => {
+      opened.push("opened");
+    },
+    write: (line) => output.push(line),
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(opened, []);
+  assert.match(output.join("\n"), /Invalid Flowmark card link/);
+});
+
+test("link prints raw or Markdown custom URLs for an active card in a live workspace", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-cli-link-"));
+  const registryPath = join(root, "global", "sessions.json");
+  try {
+    await initializeWorkspaceWithCard(root);
+    const canonicalRoot = await canonicalizeWorkspacePath(root);
+    await registerSession(session("session_live", canonicalRoot), { registryPath });
+
+    const raw: string[] = [];
+    assert.equal(
+      (
+        await runCli(["link", "card_review"], {
+          cwd: root,
+          registryPath,
+          probeSession: async () => true,
+          write: (line) => raw.push(line),
+        })
+      ).exitCode,
+      0,
+    );
+    assert.equal(
+      raw[0],
+      `flowmark://open?workspace=${encodeURIComponent(canonicalRoot)}&card=card_review`,
+    );
+
+    const markdown: string[] = [];
+    assert.equal(
+      (
+        await runCli(["link", "card_review", "--format", "markdown"], {
+          cwd: root,
+          registryPath,
+          probeSession: async () => true,
+          write: (line) => markdown.push(line),
+        })
+      ).exitCode,
+      0,
+    );
+    assert.equal(markdown[0], `[Open in Flowmark](${raw[0]})`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("link rejects missing cards, invalid formats, and workspaces without a live session", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-cli-link-"));
+  const registryPath = join(root, "global", "sessions.json");
+  try {
+    await initializeWorkspaceWithCard(root);
+    const canonicalRoot = await canonicalizeWorkspacePath(root);
+    await registerSession(session("session_stale", canonicalRoot), { registryPath });
+
+    for (const [args, probe, expected] of [
+      [["link", "card_missing"], async () => true, /No active Flowmark card/],
+      [["link", "card_review", "--format", "html"], async () => true, /raw or markdown/],
+      [["link", "card_review"], async () => false, /No running Flowmark session/],
+    ] as const) {
+      const output: string[] = [];
+      const result = await runCli([...args], {
+        cwd: root,
+        registryPath,
+        probeSession: probe,
+        write: (line) => output.push(line),
+      });
+      assert.notEqual(result.exitCode, 0);
+      assert.match(output.join("\n"), expected);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("list works outside a workspace, prunes stale entries, and prints live session details", async () => {

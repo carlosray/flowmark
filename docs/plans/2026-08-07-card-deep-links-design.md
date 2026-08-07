@@ -28,14 +28,19 @@ card modal after workspace hydration. Closing the modal removes the search
 parameter, and opening a card from the board updates it. Unknown or archived
 IDs do not produce an empty modal.
 
-On macOS, `flowmark links install` creates a small user-local application under
-`~/Applications` and registers it as the `flowmark` URL handler. The handler
+On macOS, `flowmark links install` creates rebuildable runtime state at
+`~/.flowmark/apps/Flowmark Card Links.app` and registers it as the `flowmark`
+URL handler. The handler
 passes the URL to the installed Flowmark executable. Flowmark resolves the
-workspace session and asks Safari, through `osascript`, to find a tab belonging
-to that session, navigate it to the HTTP card deep link, select the tab, and
-activate Safari. The first invocation may trigger the normal macOS Automation
-permission prompt. If no matching Safari tab exists, Flowmark opens the deep
-link in Safari.
+workspace session and first asks an installed `~/Applications/FlowMark.app`
+Safari Web App to open the HTTP card deep link when its configured origin
+matches the session. The standalone server prefers port 3000 for compatibility
+with the default Web App and falls back to a dynamic port when it is occupied.
+Without a matching Web App origin, Flowmark asks Safari through `osascript` to find a tab
+belonging to the session, navigate it to the deep link, select the tab, and
+activate Safari. The first fallback invocation may trigger the normal macOS
+Automation permission prompt. If no matching Safari tab exists, Flowmark opens
+the deep link in Safari.
 
 No custom handler is installed by `flowmark init`: installation changes
 machine-level state and remains an explicit one-time command. Linux builds keep
@@ -63,7 +68,8 @@ chosen both path and link behavior.
 
 Custom URLs accept only the `flowmark://open` shape, an absolute workspace path,
 and a lowercase URL-safe `card_` ID. Session lookup uses the existing rebuildable
-registry and probes the selected session before opening Safari. AppleScript
+registry and probes the selected session before opening Safari. The Web App
+origin is read from its manifest rather than assumed. AppleScript
 arguments are passed as process arguments rather than interpolated into script
 source.
 

@@ -206,6 +206,37 @@ Sessions are discoverable from every directory through
 `~/.flowmark/sessions.json`. The registry contains only process metadata and
 can be rebuilt; task content never lives there.
 
+## Open card links from agents
+
+Flowmark can generate a link for an active card without hardcoding the UI port:
+
+```sh
+flowmark link card_example
+flowmark link card_example --format markdown
+```
+
+The command validates the card and resolves the live session for the current
+workspace. Generated `AGENTS.md` guidance starts with paths only, asks once
+whether live links should be included in future responses, and records that
+choice without changing unrelated agent instructions.
+
+On macOS, install the local `flowmark://` handler once from the standalone
+binary:
+
+```sh
+flowmark links install
+```
+
+The standalone server prefers port `3000`, matching a Safari Web App installed
+from Flowmark's default local URL, and falls back to a free dynamic port when
+that port is occupied. Opening a generated link reuses an installed
+`~/Applications/FlowMark.app` when its configured origin matches the live
+session. Otherwise it activates an existing Safari tab for the session; if no
+matching tab exists, it opens the card in a new Safari tab.
+macOS may ask once for permission to control Safari. The handler is rebuildable
+runtime state under `~/.flowmark/apps/`; reinstall it after deleting
+`~/.flowmark/` or moving the Flowmark executable.
+
 ## Files are the database
 
 ```text

@@ -89,13 +89,13 @@ export function generateReleaseEntry(assets: PublicAsset[]) {
 
   return `import { spawn } from "node:child_process";
 import { mkdir, open, realpath } from "node:fs/promises";
-import { createServer } from "node:net";
 import { dirname } from "node:path";
 
 import nitroHandler from "../.output/server/index.mjs";
 import { runCli } from "../src/cli.ts";
 import type { DaemonLaunchOptions } from "../src/cli.ts";
 import { isAllowedLoopbackRequest } from "../src/lib/local-web-server.ts";
+import { installMacosCardLinkHandler, openCardInSafari } from "../src/lib/macos-card-link-handler.ts";
 import { updateFlowmark } from "../src/lib/self-update.ts";
 ${imports}
 
@@ -103,24 +103,7 @@ const embeddedAssets = new Map<string, { file: string; type: string }>([
 ${rows}
 ]);
 
-async function availableLoopbackPort() {
-  const probe = createServer();
-  await new Promise<void>((resolve, reject) => {
-    probe.once("error", reject);
-    probe.listen(0, "127.0.0.1", resolve);
-  });
-  const address = probe.address();
-  if (!address || typeof address === "string") throw new Error("Could not allocate a loopback port.");
-  const port = address.port;
-  await new Promise<void>((resolve, reject) =>
-    probe.close((error) => (error ? reject(error) : resolve())),
-  );
-  return port;
-}
-
-async function startWebServer(workspaceRoot: string) {
-  process.env.FLOWMARK_WORKSPACE_ROOT = workspaceRoot;
-  const port = await availableLoopbackPort();
+function startEmbeddedServer(workspaceRoot: string, port: number) {
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port,
@@ -152,6 +135,17 @@ async function startWebServer(workspaceRoot: string) {
       await server.stop(true);
     },
   };
+}
+
+async function startWebServer(workspaceRoot: string) {
+  process.env.FLOWMARK_WORKSPACE_ROOT = workspaceRoot;
+  const preferredPort = 3000;
+  try {
+    return startEmbeddedServer(workspaceRoot, preferredPort);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
+    return startEmbeddedServer(workspaceRoot, 0);
+  }
 }
 
 async function launchDaemon(options: DaemonLaunchOptions) {
@@ -199,6 +193,9 @@ const result = await runCli(process.argv.slice(2), {
   launchDaemon,
   runUpdate: async () =>
     updateFlowmark({ executablePath: await realpath(process.execPath) }),
+  installCardLinkHandler: async () =>
+    installMacosCardLinkHandler({ executablePath: await realpath(process.execPath) }),
+  openCardInSafari,
 });
 process.exitCode = result.exitCode;
 `;

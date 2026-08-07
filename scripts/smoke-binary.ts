@@ -198,6 +198,12 @@ export async function smokeBinary(args = process.argv.slice(2)) {
     if (!agents.includes("flowmark validate --strict")) {
       throw new Error("Initialized AGENTS.md does not explain strict validation.");
     }
+    if (
+      !agents.includes("flowmark-card-links: ask") ||
+      !agents.includes("flowmark link <card_id>")
+    ) {
+      throw new Error("Initialized AGENTS.md does not explain opt-in live card links.");
+    }
     console.log(`Standalone binary smoke test passed: ${details.url}`);
   } finally {
     if (sessionId) {
