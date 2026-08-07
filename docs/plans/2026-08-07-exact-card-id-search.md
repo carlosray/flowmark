@@ -45,11 +45,11 @@ Expected: FAIL because `matchesCardSearch` is not exported.
 **Step 3: Implement the minimal pure matcher**
 
 In `src/lib/board-filters.ts`, normalize the query to lowercase. Return `true`
-for an empty query. Treat `^[a-z0-9]{12}$` as a generated suffix and
-`^card_[a-z0-9]+$` as a full candidate ID. For either ID-shaped form, compare
-only the complete normalized card ID. Otherwise preserve the existing
-case-insensitive substring search across title, description, checklist text,
-and comment bodies.
+for an empty query. Treat `^[a-z0-9]{12}$` as a generated suffix and use the
+shared `isCardId` helper (`^card_[a-z0-9]+(?:_[a-z0-9]+)*$`) to recognize full
+candidate IDs. For either ID-shaped form, compare only the complete normalized
+card ID. Otherwise preserve the existing case-insensitive substring search
+across title, description, checklist text, and comment bodies.
 
 **Step 4: Run the focused test and verify GREEN**
 

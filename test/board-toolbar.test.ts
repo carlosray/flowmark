@@ -33,6 +33,13 @@ test("card search matches exact full and generated-suffix IDs case-insensitively
   assert.equal(matchesCardSearch(searchableCard, "CARD_GYCBFXXZW5AU"), true);
 });
 
+test("card search matches canonical IDs with multiple segments case-insensitively", () => {
+  const segmentedIdCard: Card = { ...searchableCard, id: "card_release_notes" };
+
+  assert.equal(matchesCardSearch(segmentedIdCard, "card_release_notes"), true);
+  assert.equal(matchesCardSearch(segmentedIdCard, "CARD_RELEASE_NOTES"), true);
+});
+
 test("card search rejects partial or different IDs", () => {
   assert.equal(matchesCardSearch(searchableCard, "gycbfxxzw5a"), false);
   assert.equal(matchesCardSearch(searchableCard, "card_gycbfxxzw5a"), false);
@@ -45,6 +52,7 @@ test("card search preserves ordinary case-insensitive prose search", () => {
   assert.equal(matchesCardSearch(searchableCard, "CHECKLIST NEEDLE"), true);
   assert.equal(matchesCardSearch(searchableCard, "COMMENT NEEDLE"), true);
   assert.equal(matchesCardSearch(searchableCard, ""), true);
+  assert.equal(matchesCardSearch(searchableCard, " ORDINARY TITLE "), false);
 });
 
 test("ID-shaped queries search only the card ID, not prose", () => {

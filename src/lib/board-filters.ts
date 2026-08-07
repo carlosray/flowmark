@@ -1,4 +1,5 @@
 import type { Card } from "@/lib/types";
+import { isCardId } from "@/lib/card-links";
 
 export function matchesCardSearch(card: Card, query: string) {
   const normalizedQuery = query.toLowerCase();
@@ -6,7 +7,7 @@ export function matchesCardSearch(card: Card, query: string) {
 
   const fullCardId = /^[a-z0-9]{12}$/.test(normalizedQuery)
     ? `card_${normalizedQuery}`
-    : /^card_[a-z0-9]+$/.test(normalizedQuery)
+    : isCardId(normalizedQuery)
       ? normalizedQuery
       : null;
   if (fullCardId) return card.id.toLowerCase() === fullCardId;
