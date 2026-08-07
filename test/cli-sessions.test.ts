@@ -149,6 +149,24 @@ test("link rejects a missing format value before workspace validation", async ()
   assert.deepEqual(output, ["Unknown card link format. Use terminal, raw, or markdown."]);
 });
 
+test("link rejects duplicate format flags before workspace validation", async () => {
+  for (const args of [
+    ["link", "card_review", "--format", "raw", "--format"],
+    ["link", "card_review", "--format", "raw", "--format", "html"],
+  ]) {
+    const output: string[] = [];
+    const result = await runCli(args, {
+      cwd: "/not-a-flowmark-workspace",
+      write: (line) => output.push(line),
+    });
+
+    assert.equal(result.exitCode, 2);
+    assert.deepEqual(output, [
+      "Card link format may be provided once. Use terminal, raw, or markdown.",
+    ]);
+  }
+});
+
 test("link prints terminal, raw, or Markdown custom URLs for an active card in a live workspace", async () => {
   const root = await mkdtemp(join(tmpdir(), "flowmark-cli-link-"));
   const registryPath = join(root, "global", "sessions.json");

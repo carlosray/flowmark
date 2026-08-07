@@ -292,6 +292,10 @@ async function linkCard(
     return { exitCode: 2 };
   }
   const formatIndex = args.indexOf("--format");
+  if (formatIndex !== args.lastIndexOf("--format")) {
+    write(`Card link format may be provided once. Use ${CARD_LINK_FORMAT_LIST}.`);
+    return { exitCode: 2 };
+  }
   const format = formatIndex < 0 ? "terminal" : args[formatIndex + 1];
   if (!isCardLinkFormat(format)) {
     write(`Unknown card link format. Use ${CARD_LINK_FORMAT_LIST}.`);
