@@ -94,13 +94,13 @@ git commit -m "Default card links to terminal hyperlinks"
 
 **Step 1: Write failing guidance tests**
 
-Require generated guidance to use `flowmark link <card_id>` without
-`--format markdown`. Extend binary smoke checks to require documentation of the
-terminal default and explicit raw/Markdown alternatives.
+Require generated guidance to run the exact bare `flowmark link <card_id>`
+command without an explicit `--format`. Extend binary smoke checks with the
+same exact-command requirement.
 
 **Step 2: Run tests and verify RED**
 
-Run: `bun test test/workspace.test.ts test/binary-build.test.ts`
+Run: `bun test test/workspace.test.ts`
 
 Expected: FAIL because generated guidance still freezes Markdown output.
 
@@ -112,9 +112,17 @@ Document Ghostty/macOS `Cmd+click`, OSC 8, deterministic redirected output,
 
 **Step 4: Run focused tests and verify GREEN**
 
-Run: `bun test test/workspace.test.ts test/binary-build.test.ts`
+Run: `bun test test/workspace.test.ts`
 
-Expected: all guidance and binary source tests pass.
+Build and run the standalone smoke test:
+
+```sh
+bun run binary
+bun run test:binary
+```
+
+Expected: the workspace unit test covers the generated guidance source, and
+`bun run test:binary` executes `smokeBinary` against the standalone executable.
 
 **Step 5: Commit guidance and documentation**
 
