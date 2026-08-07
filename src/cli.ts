@@ -32,7 +32,13 @@ import {
   runManagedSession,
 } from "./lib/session-supervisor.ts";
 import type { StartLocalWebServer } from "./lib/local-web-server.ts";
-import { buildFlowmarkCardUrl, parseFlowmarkCardUrl } from "./lib/card-links.ts";
+import {
+  buildFlowmarkCardUrl,
+  CARD_LINK_FORMATS,
+  type CardLinkFormat,
+  formatFlowmarkCardLink,
+  parseFlowmarkCardUrl,
+} from "./lib/card-links.ts";
 import { openCardInSafari as openCardInSafariDefault } from "./lib/macos-card-link-handler.ts";
 
 export { LOCAL_DEV_SERVER_ARGS } from "./lib/session-supervisor.ts";
@@ -94,7 +100,7 @@ Options:
   --strict              Treat unknown fields as validation errors
   --all                 Print every component schema
   --format yaml|json    Select schema output format (default: yaml)
-  --format raw|markdown Select card link output format (default: raw)
+  --format terminal|raw|markdown Select card link output format (default: terminal)
   -h, --help            Show this help`;
 
 const SCHEMA_HELP = `Available component schemas: ${COMPONENT_NAMES.join(", ")}
@@ -280,12 +286,12 @@ async function linkCard(
   write: (message: string) => void,
 ) {
   if (!cardId) {
-    write("Usage: flowmark link <card-id> [--format raw|markdown]");
+    write("Usage: flowmark link <card-id> [--format terminal|raw|markdown]");
     return { exitCode: 2 };
   }
-  const format = flagValue(args, "--format") ?? "raw";
-  if (format !== "raw" && format !== "markdown") {
-    write("Unknown card link format. Use raw or markdown.");
+  const format = flagValue(args, "--format") ?? "terminal";
+  if (!CARD_LINK_FORMATS.includes(format as CardLinkFormat)) {
+    write("Unknown card link format. Use terminal, raw, or markdown.");
     return { exitCode: 2 };
   }
 
@@ -317,7 +323,7 @@ async function linkCard(
   }
 
   const url = buildFlowmarkCardUrl(workspaceRoot, cardId);
-  write(format === "markdown" ? `[Open in Flowmark](${url})` : url);
+  write(formatFlowmarkCardLink(url, format as CardLinkFormat));
   return { exitCode: 0 };
 }
 

@@ -4,8 +4,19 @@ import test from "node:test";
 import {
   buildFlowmarkCardUrl,
   buildSessionCardUrl,
+  formatFlowmarkCardLink,
   parseFlowmarkCardUrl,
 } from "../src/lib/card-links.ts";
+
+test("formats card links for terminal, raw, and Markdown output", () => {
+  const url = "flowmark://open?workspace=%2Ftmp%2Ftasks&card=card_example";
+  assert.equal(
+    formatFlowmarkCardLink(url, "terminal"),
+    `\u001b]8;;${url}\u001b\\Open in Flowmark\u001b]8;;\u001b\\`,
+  );
+  assert.equal(formatFlowmarkCardLink(url, "raw"), url);
+  assert.equal(formatFlowmarkCardLink(url, "markdown"), `[Open in Flowmark](${url})`);
+});
 
 test("builds a port-independent custom URL for an immutable card ID", () => {
   assert.equal(

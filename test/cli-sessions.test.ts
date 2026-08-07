@@ -69,6 +69,7 @@ test("help documents daemon, list, and exact session stop commands", async () =>
   assert.match(help, /flowmark stop <id>/);
   assert.match(help, /flowmark link <card-id>/);
   assert.match(help, /flowmark links install/);
+  assert.match(help, /--format terminal\|raw\|markdown.*default: terminal/);
 });
 
 test("links install delegates explicit machine setup to the standalone adapter", async () => {
@@ -137,7 +138,7 @@ test("custom URL handling rejects malformed links before opening Safari", async 
   assert.match(output.join("\n"), /Invalid Flowmark card link/);
 });
 
-test("link prints raw or Markdown custom URLs for an active card in a live workspace", async () => {
+test("link prints terminal, raw, or Markdown custom URLs for an active card in a live workspace", async () => {
   const root = await mkdtemp(join(tmpdir(), "flowmark-cli-link-"));
   const registryPath = join(root, "global", "sessions.json");
   try {
@@ -145,10 +146,41 @@ test("link prints raw or Markdown custom URLs for an active card in a live works
     const canonicalRoot = await canonicalizeWorkspacePath(root);
     await registerSession(session("session_live", canonicalRoot), { registryPath });
 
-    const raw: string[] = [];
+    const url = `flowmark://open?workspace=${encodeURIComponent(canonicalRoot)}&card=card_review`;
+    const terminalLink = `\u001b]8;;${url}\u001b\\Open in Flowmark\u001b]8;;\u001b\\`;
+
+    const defaultOutput: string[] = [];
     assert.equal(
       (
         await runCli(["link", "card_review"], {
+          cwd: root,
+          registryPath,
+          probeSession: async () => true,
+          write: (line) => defaultOutput.push(line),
+        })
+      ).exitCode,
+      0,
+    );
+    assert.equal(defaultOutput[0], terminalLink);
+
+    const terminal: string[] = [];
+    assert.equal(
+      (
+        await runCli(["link", "card_review", "--format", "terminal"], {
+          cwd: root,
+          registryPath,
+          probeSession: async () => true,
+          write: (line) => terminal.push(line),
+        })
+      ).exitCode,
+      0,
+    );
+    assert.equal(terminal[0], terminalLink);
+
+    const raw: string[] = [];
+    assert.equal(
+      (
+        await runCli(["link", "card_review", "--format", "raw"], {
           cwd: root,
           registryPath,
           probeSession: async () => true,
@@ -157,10 +189,7 @@ test("link prints raw or Markdown custom URLs for an active card in a live works
       ).exitCode,
       0,
     );
-    assert.equal(
-      raw[0],
-      `flowmark://open?workspace=${encodeURIComponent(canonicalRoot)}&card=card_review`,
-    );
+    assert.equal(raw[0], url);
 
     const markdown: string[] = [];
     assert.equal(
@@ -174,7 +203,7 @@ test("link prints raw or Markdown custom URLs for an active card in a live works
       ).exitCode,
       0,
     );
-    assert.equal(markdown[0], `[Open in Flowmark](${raw[0]})`);
+    assert.equal(markdown[0], `[Open in Flowmark](${url})`);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -190,7 +219,7 @@ test("link rejects missing cards, invalid formats, and workspaces without a live
 
     for (const [args, probe, expected] of [
       [["link", "card_missing"], async () => true, /No active Flowmark card/],
-      [["link", "card_review", "--format", "html"], async () => true, /raw or markdown/],
+      [["link", "card_review", "--format", "html"], async () => true, /terminal, raw, or markdown/],
       [["link", "card_review"], async () => false, /No running Flowmark session/],
     ] as const) {
       const output: string[] = [];

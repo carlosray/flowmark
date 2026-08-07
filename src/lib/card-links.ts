@@ -1,5 +1,17 @@
 const CARD_ID_PATTERN = /^card_[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
+export type CardLinkFormat = "terminal" | "raw" | "markdown";
+
+export const CARD_LINK_FORMATS: readonly CardLinkFormat[] = ["terminal", "raw", "markdown"];
+
+export function formatFlowmarkCardLink(url: string, format: CardLinkFormat) {
+  if (format === "terminal") {
+    return `\u001b]8;;${url}\u001b\\Open in Flowmark\u001b]8;;\u001b\\`;
+  }
+  if (format === "markdown") return `[Open in Flowmark](${url})`;
+  return url;
+}
+
 function isAbsoluteWorkspacePath(value: string) {
   return value.startsWith("/");
 }
