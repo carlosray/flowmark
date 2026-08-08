@@ -215,6 +215,7 @@ flowmark link card_example
 flowmark link card_example --format terminal
 flowmark link card_example --format raw
 flowmark link card_example --format markdown
+flowmark link card_example --workspace ../tasks
 ```
 
 The default and explicit `terminal` formats emit the same OSC 8 hyperlink,
@@ -223,10 +224,13 @@ labeled `Open in Flowmark`. In Ghostty on macOS, open it with `Cmd+click`.
 request `--format raw`, while Markdown renderers should request
 `--format markdown`.
 
-The command validates the card and resolves the live session for the current
-workspace. Generated `AGENTS.md` guidance starts with paths only, asks once
-whether live links should be included in future responses, and records that
-choice without changing unrelated agent instructions.
+Inside a Flowmark workspace, the command validates the card and resolves that
+workspace's live session. From any other directory, it searches the registered
+live workspaces and uses the only workspace containing that active card. If the
+card ID exists in more than one, change into the intended workspace or select it
+with `--workspace <path>`. Generated `AGENTS.md` guidance starts with paths only,
+asks once whether live links should be included in future responses, and records
+that choice without changing unrelated agent instructions.
 
 On macOS, install the local `flowmark://` handler once from the standalone
 binary:

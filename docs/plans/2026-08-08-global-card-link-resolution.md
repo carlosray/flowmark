@@ -13,6 +13,7 @@
 ### Task 1: Define CLI resolution behavior with failing tests
 
 **Files:**
+
 - Modify: `test/cli-sessions.test.ts`
 
 **Step 1: Write the failing tests**
@@ -37,6 +38,7 @@ Expected: the new tests fail because `linkCard` still requires `cwd` to be a wor
 ### Task 2: Implement minimal workspace resolution
 
 **Files:**
+
 - Modify: `src/cli.ts`
 
 **Step 1: Parse the explicit workspace flag**
@@ -60,6 +62,7 @@ Expected: all CLI session tests pass.
 ### Task 3: Document and verify the public CLI contract
 
 **Files:**
+
 - Modify: `README.md`
 - Modify: `src/cli.ts`
 

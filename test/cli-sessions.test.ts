@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -59,7 +59,7 @@ Review this card.
   );
 }
 
-test("help documents daemon, list, and exact session stop commands", async () => {
+test("help documents daemon, session commands, and global card link resolution", async () => {
   const output: string[] = [];
   assert.equal((await runCli(["--help"], { write: (line) => output.push(line) })).exitCode, 0);
 
@@ -68,7 +68,9 @@ test("help documents daemon, list, and exact session stop commands", async () =>
   assert.match(help, /flowmark list/);
   assert.match(help, /flowmark stop <id>/);
   assert.match(help, /flowmark link <card-id>/);
+  assert.match(help, /running workspace/);
   assert.match(help, /flowmark links install/);
+  assert.match(help, /--workspace PATH/);
   assert.match(help, /--format terminal\|raw\|markdown.*default: terminal/);
 });
 
@@ -235,6 +237,149 @@ test("link prints terminal, raw, or Markdown custom URLs for an active card in a
     assert.equal(markdown[0], `[Open in Flowmark](${url})`);
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("link infers one matching live workspace when invoked outside a workspace", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-cli-global-link-"));
+  const workspace = join(root, "tasks");
+  const registryPath = join(root, "global", "sessions.json");
+  const output: string[] = [];
+  try {
+    await mkdir(workspace);
+    await initializeWorkspaceWithCard(workspace);
+    const canonicalWorkspace = await canonicalizeWorkspacePath(workspace);
+    await registerSession(session("session_tasks", canonicalWorkspace), { registryPath });
+
+    const result = await runCli(["link", "card_review", "--format", "raw"], {
+      cwd: root,
+      registryPath,
+      probeSession: async () => true,
+      write: (line) => output.push(line),
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(output, [
+      `flowmark://open?workspace=${encodeURIComponent(canonicalWorkspace)}&card=card_review`,
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("link lists matching live workspaces instead of guessing when a card ID is ambiguous", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-cli-ambiguous-link-"));
+  const firstWorkspace = join(root, "first");
+  const secondWorkspace = join(root, "second");
+  const registryPath = join(root, "global", "sessions.json");
+  const output: string[] = [];
+  try {
+    await mkdir(firstWorkspace);
+    await mkdir(secondWorkspace);
+    await initializeWorkspaceWithCard(firstWorkspace);
+    await initializeWorkspaceWithCard(secondWorkspace);
+    const canonicalFirst = await canonicalizeWorkspacePath(firstWorkspace);
+    const canonicalSecond = await canonicalizeWorkspacePath(secondWorkspace);
+    await registerSession(session("session_first", canonicalFirst), { registryPath });
+    await registerSession(session("session_second", canonicalSecond), { registryPath });
+
+    const result = await runCli(["link", "card_review"], {
+      cwd: root,
+      registryPath,
+      probeSession: async () => true,
+      write: (line) => output.push(line),
+    });
+
+    assert.equal(result.exitCode, 1);
+    const message = output.join("\n");
+    assert.match(message, /multiple running Flowmark workspaces/);
+    assert.match(message, new RegExp(canonicalFirst));
+    assert.match(message, new RegExp(canonicalSecond));
+    assert.match(message, /--workspace <path>/);
+    assert.match(message, /change into/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("link keeps current-workspace scope when another live workspace has the same card ID", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-cli-scoped-link-"));
+  const currentWorkspace = join(root, "current");
+  const otherWorkspace = join(root, "other");
+  const registryPath = join(root, "global", "sessions.json");
+  const output: string[] = [];
+  try {
+    await mkdir(currentWorkspace);
+    await mkdir(otherWorkspace);
+    await initializeWorkspaceWithCard(currentWorkspace);
+    await initializeWorkspaceWithCard(otherWorkspace);
+    const canonicalCurrent = await canonicalizeWorkspacePath(currentWorkspace);
+    const canonicalOther = await canonicalizeWorkspacePath(otherWorkspace);
+    await registerSession(session("session_current", canonicalCurrent), { registryPath });
+    await registerSession(session("session_other", canonicalOther), { registryPath });
+
+    const result = await runCli(["link", "card_review", "--format", "raw"], {
+      cwd: currentWorkspace,
+      registryPath,
+      probeSession: async () => true,
+      write: (line) => output.push(line),
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(output, [
+      `flowmark://open?workspace=${encodeURIComponent(canonicalCurrent)}&card=card_review`,
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("link accepts an explicit relative workspace path outside a workspace", async () => {
+  const root = await mkdtemp(join(tmpdir(), "flowmark-cli-explicit-link-"));
+  const workspace = join(root, "tasks");
+  const registryPath = join(root, "global", "sessions.json");
+  const output: string[] = [];
+  try {
+    await mkdir(workspace);
+    await initializeWorkspaceWithCard(workspace);
+    const canonicalWorkspace = await canonicalizeWorkspacePath(workspace);
+    await registerSession(session("session_tasks", canonicalWorkspace), { registryPath });
+
+    const result = await runCli(
+      ["link", "card_review", "--workspace", "tasks", "--format", "raw"],
+      {
+        cwd: root,
+        registryPath,
+        probeSession: async () => true,
+        write: (line) => output.push(line),
+      },
+    );
+
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(output, [
+      `flowmark://open?workspace=${encodeURIComponent(canonicalWorkspace)}&card=card_review`,
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("link rejects missing and duplicate workspace flags before discovery", async () => {
+  for (const [args, expected] of [
+    [["link", "card_review", "--workspace"], /requires a path/],
+    [
+      ["link", "card_review", "--workspace", "/first", "--workspace", "/second"],
+      /may be provided once/,
+    ],
+  ] as const) {
+    const output: string[] = [];
+    const result = await runCli([...args], {
+      cwd: "/not-a-flowmark-workspace",
+      write: (line) => output.push(line),
+    });
+
+    assert.equal(result.exitCode, 2);
+    assert.match(output.join("\n"), expected);
   }
 });
 

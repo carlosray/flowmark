@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
 import { spawn } from "node:child_process";
-import { mkdir, open } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { access, mkdir, open } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
@@ -84,7 +84,7 @@ Commands:
   flowmark list         List running Flowmark UI sessions
   flowmark stop <id>    Stop one running Flowmark UI session
   flowmark link <card-id>
-                        Print a live card link for this workspace
+                        Print a live card link from a running workspace
   flowmark links install
                         Install the macOS flowmark:// URL handler
   flowmark init         Create or verify a Flowmark workspace
@@ -101,6 +101,7 @@ Options:
   --all                 Print every component schema
   --format yaml|json    Select schema output format (default: yaml)
   --format terminal|raw|markdown Select card link output format (default: terminal)
+  --workspace PATH      Select the workspace for a card link
   -h, --help            Show this help`;
 
 const SCHEMA_HELP = `Available component schemas: ${COMPONENT_NAMES.join(", ")}
@@ -302,34 +303,104 @@ async function linkCard(
     return { exitCode: 2 };
   }
 
-  let workspaceRoot: string;
+  const workspaceFlagIndexes = args.flatMap((argument, index) =>
+    argument === "--workspace" ? [index] : [],
+  );
+  if (workspaceFlagIndexes.length > 1) {
+    write("Card link workspace may be provided once with --workspace <path>.");
+    return { exitCode: 2 };
+  }
+  const workspaceFlagIndex = workspaceFlagIndexes[0];
+  const workspaceFlagValue =
+    workspaceFlagIndex === undefined ? undefined : args[workspaceFlagIndex + 1];
+  if (
+    workspaceFlagIndex !== undefined &&
+    (!workspaceFlagValue || workspaceFlagValue.startsWith("-"))
+  ) {
+    write("Card link --workspace requires a path.");
+    return { exitCode: 2 };
+  }
+
+  const invocationDirectory = options.cwd ?? process.cwd();
+
+  const linkFromWorkspace = async (workspaceRoot: string) => {
+    const validation = await validateWorkspace(workspaceRoot, { strict: true });
+    if (validation.errors.length > 0) {
+      reportDiagnostics([...validation.errors, ...validation.warnings], write);
+      return { exitCode: 1 };
+    }
+    const card = validation.workspace?.cards.get(cardId);
+    if (!card || card.archived) {
+      write(`No active Flowmark card with ID "${cardId}" exists in this workspace.`);
+      return { exitCode: 1 };
+    }
+
+    const sessions = await pruneStaleSessions({
+      registryPath: options.registryPath,
+      probe: options.probeSession ?? probeManagedSession,
+    });
+    if (!findSessionByWorkspace(sessions.sessions, workspaceRoot)) {
+      write("No running Flowmark session exists for this workspace. Start it with `flowmark`.");
+      return { exitCode: 1 };
+    }
+
+    const url = buildFlowmarkCardUrl(workspaceRoot, cardId);
+    write(formatFlowmarkCardLink(url, format));
+    return { exitCode: 0 };
+  };
+
+  if (workspaceFlagValue) {
+    const requestedWorkspace = resolve(invocationDirectory, workspaceFlagValue);
+    let workspaceRoot: string;
+    try {
+      workspaceRoot = await canonicalizeWorkspacePath(requestedWorkspace);
+    } catch {
+      write(`Flowmark workspace does not exist: ${requestedWorkspace}`);
+      return { exitCode: 1 };
+    }
+    return linkFromWorkspace(workspaceRoot);
+  }
+
+  let currentWorkspace: string | undefined;
   try {
-    workspaceRoot = await canonicalizeWorkspacePath(options.cwd ?? process.cwd());
+    const canonicalCurrentDirectory = await canonicalizeWorkspacePath(invocationDirectory);
+    await access(join(canonicalCurrentDirectory, "flowmark.yaml"));
+    currentWorkspace = canonicalCurrentDirectory;
   } catch {
-    write("Current directory is not a Flowmark workspace. Run this command from its root.");
-    return { exitCode: 1 };
+    currentWorkspace = undefined;
   }
-  const validation = await validateWorkspace(workspaceRoot, { strict: true });
-  if (validation.errors.length > 0) {
-    reportDiagnostics([...validation.errors, ...validation.warnings], write);
-    return { exitCode: 1 };
-  }
-  const card = validation.workspace?.cards.get(cardId);
-  if (!card || card.archived) {
-    write(`No active Flowmark card with ID "${cardId}" exists in this workspace.`);
-    return { exitCode: 1 };
-  }
+  if (currentWorkspace) return linkFromWorkspace(currentWorkspace);
 
   const sessions = await pruneStaleSessions({
     registryPath: options.registryPath,
     probe: options.probeSession ?? probeManagedSession,
   });
-  if (!findSessionByWorkspace(sessions.sessions, workspaceRoot)) {
-    write("No running Flowmark session exists for this workspace. Start it with `flowmark`.");
+
+  const workspaceRoots = [...new Set(sessions.sessions.map((session) => session.workspace_path))];
+  const matches = (
+    await Promise.all(
+      workspaceRoots.map(async (workspaceRoot) => {
+        const validation = await validateWorkspace(workspaceRoot, { strict: true });
+        if (validation.errors.length > 0) return undefined;
+        const card = validation.workspace?.cards.get(cardId);
+        return card && !card.archived ? workspaceRoot : undefined;
+      }),
+    )
+  ).filter((workspaceRoot): workspaceRoot is string => workspaceRoot !== undefined);
+
+  if (matches.length === 0) {
+    write(`No active Flowmark card with ID "${cardId}" exists in any running workspace.`);
+    return { exitCode: 1 };
+  }
+  if (matches.length > 1) {
+    const paths = matches.toSorted().map((workspaceRoot) => `- ${workspaceRoot}`);
+    write(
+      `Card "${cardId}" exists in multiple running Flowmark workspaces:\n${paths.join("\n")}\nChange into the intended workspace or pass --workspace <path>.`,
+    );
     return { exitCode: 1 };
   }
 
-  const url = buildFlowmarkCardUrl(workspaceRoot, cardId);
+  const url = buildFlowmarkCardUrl(matches[0], cardId);
   write(formatFlowmarkCardLink(url, format));
   return { exitCode: 0 };
 }
