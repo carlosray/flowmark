@@ -289,7 +289,7 @@ async function linkCard(
   write: (message: string) => void,
 ) {
   if (!cardId) {
-    write("Usage: flowmark link <card-id> [--format terminal|raw|markdown]");
+    write("Usage: flowmark link <card-id> [--workspace PATH] [--format terminal|raw|markdown]");
     return { exitCode: 2 };
   }
   const formatIndex = args.indexOf("--format");
@@ -531,7 +531,8 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
   }
   if (command === "link") {
     try {
-      const cardId = args.slice(commandIndex + 1).find((argument) => !argument.startsWith("-"));
+      const cardArgument = args[commandIndex + 1];
+      const cardId = cardArgument?.startsWith("-") ? undefined : cardArgument;
       return await linkCard(cardId, args, { ...options, cwd }, write);
     } catch (error) {
       write(error instanceof Error ? error.message : String(error));
