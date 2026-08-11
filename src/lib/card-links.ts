@@ -61,6 +61,37 @@ export function parseFlowmarkCardUrl(value: string) {
   return { workspacePath, cardId };
 }
 
+export function isCardReferenceUrl(value: string) {
+  return value.startsWith("flowmark://card_") || value.startsWith("flowmark://open");
+}
+
+/**
+ * Resolve a card reference URL to a card ID in this workspace.
+ * Same-workspace shorthand `flowmark://card_<id>` always resolves.
+ * Full `flowmark://open?workspace=...&card=...` links resolve only when the
+ * workspace path matches the current one; cross-workspace links never render.
+ */
+export function resolveCardReferenceTarget(value: string, workspacePath: string | null) {
+  if (value.startsWith("flowmark://card_")) {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "flowmark:" || url.pathname !== "" || url.search !== "") return null;
+      const cardId = url.hostname;
+      return isCardId(cardId) ? cardId : null;
+    } catch {
+      return null;
+    }
+  }
+  if (!value.startsWith("flowmark://open") || !workspacePath) return null;
+  try {
+    const parsed = parseFlowmarkCardUrl(value);
+    const normalize = (path: string) => path.replace(/\/+$/, "");
+    return normalize(parsed.workspacePath) === normalize(workspacePath) ? parsed.cardId : null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildSessionCardUrl(sessionUrl: string, cardId: string) {
   assertCardId(cardId);
   const url = new URL(sessionUrl);

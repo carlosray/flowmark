@@ -55,6 +55,12 @@ export const FLOWMARK_AGENT_GUIDANCE = `# Flowmark task-management rules
 - With \`never\`, keep using only the source path.
 - If link generation fails because Flowmark is not running, report the source path and the failure briefly instead of omitting the card reference.
 
+## Card references in content
+
+- In card descriptions and comments, reference another card in the same workspace with a bare \`flowmark://card_<id>\` URL, or a Markdown link \`[label](flowmark://card_<id>)\`.
+- The board renders same-workspace card references as titled links and opens the referenced card on click. References to cards that do not exist here and cross-workspace links stay plain text, so they double as readable fallbacks.
+- Keep card reference URLs out of card titles; they never render as links there.
+
 ## Required validation
 
 - After every task edit, run \`flowmark validate --strict\` from the workspace root.

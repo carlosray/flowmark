@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   buildCardContentPatch,
@@ -178,4 +180,34 @@ test("card close flushes pending blur edits even when its patch is unchanged", a
   });
 
   assert.deepEqual(calls, ["flush", "close"]);
+});
+
+test("the card modal shows the column a card lives in", async () => {
+  const { CardColumnChip } = await import("../src/components/board/CardModal.tsx");
+  const html = renderToStaticMarkup(createElement(CardColumnChip, { name: "In progress" }));
+
+  assert.match(html, /In progress/);
+  assert.match(html, /<svg/);
+
+  const source = await readFile(
+    new URL("../src/components/board/CardModal.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    source,
+    /board\.columns\.find\(\(candidate\) => candidate\.cardIds\.includes\(card\.id\)\)/,
+  );
+  assert.match(source, /<CardColumnChip name=\{column\.name\} \/>/);
+});
+
+test("descriptions and comments resolve card references while titles stay plain", async () => {
+  const source = await readFile(
+    new URL("../src/components/board/CardModal.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /value=\{desc\}[\s\S]*multiline[\s\S]*cardLinks[\s\S]*cardMentions/);
+  assert.match(source, /value=\{c\.body\}[\s\S]*multiline[\s\S]*cardLinks[\s\S]*cardMentions/);
+  const titleBlock = /value=\{title\}([\s\S]*?)ariaLabel="Edit card title"/.exec(source)?.[1] ?? "";
+  assert.doesNotMatch(titleBlock, /cardLinks|cardMentions/);
 });

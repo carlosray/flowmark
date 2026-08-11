@@ -44,6 +44,7 @@ import { MarkdownInline } from "./MarkdownContent";
 
 import { cn } from "@/lib/utils";
 import { resolveRequestedCardId } from "@/lib/card-deep-link";
+import { CardLinkContext } from "./card-link-context";
 
 type DueFilter = "all" | "overdue" | "today" | "week" | "none";
 
@@ -276,175 +277,179 @@ export function Board({
   const activeColumn = activeColumnId ? board.columns.find((c) => c.id === activeColumnId) : null;
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] bg-background">
-      {/* Toolbar */}
-      <header className="shrink-0 border-b border-border bg-surface/60 backdrop-blur px-3 sm:px-4 py-1.5 sm:py-0 sm:h-12 flex items-center gap-2 flex-wrap sm:flex-nowrap">
-        <div className="flex items-center gap-2 mr-1 shrink-0">
-          <img
-            src={flowmarkIcon}
-            alt="FlowMark"
-            width={24}
-            height={24}
-            className="h-6 w-6 rounded-md"
-          />
-          <span className="font-semibold text-sm tracking-tight">FlowMark</span>
-        </div>
-
-        <div className="relative order-3 sm:order-none w-full sm:w-auto sm:flex-1 sm:min-w-0 sm:max-w-md">
-          <Search
-            size={13}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-          />
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search cards…"
-            className="w-full h-8 bg-surface-sunken border border-border rounded-md pl-7 pr-8 text-sm outline-none focus:border-primary/60"
-          />
-          <span className="ds-kbd absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline">
-            /
-          </span>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2 shrink-0 overflow-x-auto max-w-full">
-          <FilterChip
-            label="Due"
-            value={dueFilter}
-            options={[
-              ["all", "All"],
-              ["overdue", "Overdue"],
-              ["today", "Today"],
-              ["week", "Upcoming"],
-              ["none", "No date"],
-            ]}
-            onChange={(v) => setDueFilter(v as DueFilter)}
-          />
-          <FilterChip
-            label="Status"
-            value={completedFilter}
-            options={[
-              ["all", "All"],
-              ["open", "Open"],
-              ["done", "Completed"],
-            ]}
-            onChange={(v) => setCompletedFilter(v as CompletedFilter)}
-          />
-          <RulesButton />
-          <ManageTagsButton selectedTagIds={tagFilter} onSelectedTagIdsChange={setTagFilter} />
-          <ThemeSwitcher initialTheme={initialTheme} />
-          <ReloadWorkspaceButton cards={board.cards} />
-        </div>
-      </header>
-
-      {sync.status === "error" && (
-        <div
-          role="alert"
-          className="shrink-0 flex items-center gap-3 border-b border-danger/40 bg-danger/10 px-3 sm:px-4 py-2 text-xs text-danger"
-        >
-          <div className="min-w-0 flex-1">
-            <span className="font-semibold">Workspace disconnected.</span> The last change was not
-            saved and the board was restored to its last confirmed state. Restart Flowmark, then
-            reconnect.
+    <CardLinkContext.Provider
+      value={{ cards: board.cards, workspacePath: sync.filePath, openCard: changeOpenCardId }}
+    >
+      <div className="flex flex-col h-screen h-[100dvh] bg-background">
+        {/* Toolbar */}
+        <header className="shrink-0 border-b border-border bg-surface/60 backdrop-blur px-3 sm:px-4 py-1.5 sm:py-0 sm:h-12 flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2 mr-1 shrink-0">
+            <img
+              src={flowmarkIcon}
+              alt="FlowMark"
+              width={24}
+              height={24}
+              className="h-6 w-6 rounded-md"
+            />
+            <span className="font-semibold text-sm tracking-tight">FlowMark</span>
           </div>
-          <button
-            type="button"
-            onClick={() => void store.reloadFromDisk()}
-            className="shrink-0 rounded-md border border-danger/40 px-2.5 py-1 font-medium hover:bg-danger/10"
-          >
-            Reconnect
-          </button>
-        </div>
-      )}
 
-      {/* Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetectionStrategy}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDragEnd={onDragEnd}
-          onDragCancel={onDragCancel}
-        >
-          <SortableContext
-            items={board.columns.map((c) => c.id)}
-            strategy={horizontalListSortingStrategy}
+          <div className="relative order-3 sm:order-none w-full sm:w-auto sm:flex-1 sm:min-w-0 sm:max-w-md">
+            <Search
+              size={13}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+            />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search cards…"
+              className="w-full h-8 bg-surface-sunken border border-border rounded-md pl-7 pr-8 text-sm outline-none focus:border-primary/60"
+            />
+            <span className="ds-kbd absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline">
+              /
+            </span>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 shrink-0 overflow-x-auto max-w-full">
+            <FilterChip
+              label="Due"
+              value={dueFilter}
+              options={[
+                ["all", "All"],
+                ["overdue", "Overdue"],
+                ["today", "Today"],
+                ["week", "Upcoming"],
+                ["none", "No date"],
+              ]}
+              onChange={(v) => setDueFilter(v as DueFilter)}
+            />
+            <FilterChip
+              label="Status"
+              value={completedFilter}
+              options={[
+                ["all", "All"],
+                ["open", "Open"],
+                ["done", "Completed"],
+              ]}
+              onChange={(v) => setCompletedFilter(v as CompletedFilter)}
+            />
+            <RulesButton />
+            <ManageTagsButton selectedTagIds={tagFilter} onSelectedTagIdsChange={setTagFilter} />
+            <ThemeSwitcher initialTheme={initialTheme} />
+            <ReloadWorkspaceButton cards={board.cards} />
+          </div>
+        </header>
+
+        {sync.status === "error" && (
+          <div
+            role="alert"
+            className="shrink-0 flex items-center gap-3 border-b border-danger/40 bg-danger/10 px-3 sm:px-4 py-2 text-xs text-danger"
           >
-            <div className="flex gap-3 p-4 h-full items-stretch min-w-max">
-              {board.columns.map((col) => (
-                <ColumnView
-                  key={col.id}
-                  column={col}
-                  onOpenCard={changeOpenCardId}
-                  cardFilter={filterCard}
-                />
-              ))}
-              <AddColumnButton />
+            <div className="min-w-0 flex-1">
+              <span className="font-semibold">Workspace disconnected.</span> The last change was not
+              saved and the board was restored to its last confirmed state. Restart Flowmark, then
+              reconnect.
             </div>
-          </SortableContext>
+            <button
+              type="button"
+              onClick={() => void store.reloadFromDisk()}
+              className="shrink-0 rounded-md border border-danger/40 px-2.5 py-1 font-medium hover:bg-danger/10"
+            >
+              Reconnect
+            </button>
+          </div>
+        )}
 
-          <DragOverlay dropAnimation={null}>
-            {activeCard && (
-              <div className="ds-card ds-card-dragging p-2.5 w-[280px]">
-                <div className="overflow-wrap-anywhere text-[13px] font-medium">
-                  <MarkdownInline>{activeCard.title}</MarkdownInline>
+        {/* Board */}
+        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetectionStrategy}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragEnd={onDragEnd}
+            onDragCancel={onDragCancel}
+          >
+            <SortableContext
+              items={board.columns.map((c) => c.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex gap-3 p-4 h-full items-stretch min-w-max">
+                {board.columns.map((col) => (
+                  <ColumnView
+                    key={col.id}
+                    column={col}
+                    onOpenCard={changeOpenCardId}
+                    cardFilter={filterCard}
+                  />
+                ))}
+                <AddColumnButton />
+              </div>
+            </SortableContext>
+
+            <DragOverlay dropAnimation={null}>
+              {activeCard && (
+                <div className="ds-card ds-card-dragging p-2.5 w-[280px]">
+                  <div className="overflow-wrap-anywhere text-[13px] font-medium">
+                    <MarkdownInline>{activeCard.title}</MarkdownInline>
+                  </div>
                 </div>
-              </div>
-            )}
-            {activeColumn && (
-              <div className="ds-column w-[300px] opacity-90">
-                <div className="px-3 py-2.5 text-sm font-semibold">{activeColumn.name}</div>
-              </div>
-            )}
-          </DragOverlay>
-        </DndContext>
+              )}
+              {activeColumn && (
+                <div className="ds-column w-[300px] opacity-90">
+                  <div className="px-3 py-2.5 text-sm font-semibold">{activeColumn.name}</div>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
+        </div>
+
+        {/* Footer / shortcuts */}
+        <footer className="shrink-0 border-t border-border bg-surface-sunken/50 px-3 sm:px-4 py-1.5 flex items-center gap-4 text-[11px] text-subtle-foreground">
+          <span className="hidden sm:inline-flex items-center gap-1">
+            <span className="ds-kbd">/</span> search
+          </span>
+          <span className="hidden sm:inline-flex items-center gap-1">
+            <span className="ds-kbd">N</span> new card
+          </span>
+          <span className="hidden sm:inline-flex items-center gap-1">
+            <span className="ds-kbd">Esc</span> close
+          </span>
+          <code
+            className="ml-auto min-w-0 truncate font-mono text-[11px]"
+            title={sync.filePath ?? "…"}
+          >
+            {sync.filePath ?? "…"}
+          </code>
+        </footer>
+
+        <CardModal
+          cardId={openCardId}
+          isDraft={openCardId !== null && openCardId === draftCardId}
+          onClose={() => {
+            changeOpenCardId(null);
+            setDraftCardId(null);
+          }}
+          onSaveDraft={() => {
+            changeOpenCardId(null);
+            setDraftCardId(null);
+          }}
+        />
+
+        <NewCardColumnPicker
+          open={pickerOpen}
+          columns={board.columns}
+          onClose={() => setPickerOpen(false)}
+          onPick={(columnId) => {
+            setPickerOpen(false);
+            const id = store.addCard(columnId, "Untitled");
+            setDraftCardId(id);
+            changeOpenCardId(id);
+          }}
+        />
       </div>
-
-      {/* Footer / shortcuts */}
-      <footer className="shrink-0 border-t border-border bg-surface-sunken/50 px-3 sm:px-4 py-1.5 flex items-center gap-4 text-[11px] text-subtle-foreground">
-        <span className="hidden sm:inline-flex items-center gap-1">
-          <span className="ds-kbd">/</span> search
-        </span>
-        <span className="hidden sm:inline-flex items-center gap-1">
-          <span className="ds-kbd">N</span> new card
-        </span>
-        <span className="hidden sm:inline-flex items-center gap-1">
-          <span className="ds-kbd">Esc</span> close
-        </span>
-        <code
-          className="ml-auto min-w-0 truncate font-mono text-[11px]"
-          title={sync.filePath ?? "…"}
-        >
-          {sync.filePath ?? "…"}
-        </code>
-      </footer>
-
-      <CardModal
-        cardId={openCardId}
-        isDraft={openCardId !== null && openCardId === draftCardId}
-        onClose={() => {
-          changeOpenCardId(null);
-          setDraftCardId(null);
-        }}
-        onSaveDraft={() => {
-          changeOpenCardId(null);
-          setDraftCardId(null);
-        }}
-      />
-
-      <NewCardColumnPicker
-        open={pickerOpen}
-        columns={board.columns}
-        onClose={() => setPickerOpen(false)}
-        onPick={(columnId) => {
-          setPickerOpen(false);
-          const id = store.addCard(columnId, "Untitled");
-          setDraftCardId(id);
-          changeOpenCardId(id);
-        }}
-      />
-    </div>
+    </CardLinkContext.Provider>
   );
 }
 

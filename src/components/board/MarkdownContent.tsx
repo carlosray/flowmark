@@ -1,5 +1,12 @@
 import type { Root } from "mdast";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, {
+  defaultUrlTransform,
+  type Components,
+  type UrlTransform,
+} from "react-markdown";
+
+import { isCardReferenceUrl } from "@/lib/card-links";
+import { CardLink } from "./CardLink";
 
 type MarkdownNode = {
   type: string;
@@ -7,8 +14,11 @@ type MarkdownNode = {
   children?: MarkdownNode[];
 };
 
-const BARE_URL = /\b(?:https?:\/\/|www\.)[^\s<]+/gi;
+const BARE_URL = /\b(?:https?:\/\/|www\.)[^\s<]+|flowmark:\/\/[^\s<]+/gi;
 const NON_LINK_PARENTS = new Set(["code", "inlineCode", "link", "linkReference"]);
+
+const urlTransform: UrlTransform = (value) =>
+  isCardReferenceUrl(value) ? value : defaultUrlTransform(value);
 
 function splitTrailingPunctuation(value: string): [string, string] {
   let url = value;
@@ -33,15 +43,17 @@ function splitTrailingPunctuation(value: string): [string, string] {
   return [url, trailing];
 }
 
-function linkifyText(value: string): MarkdownNode[] {
+function linkifyText(value: string, linkifyCardLinks: boolean): MarkdownNode[] {
   const nodes: MarkdownNode[] = [];
   let cursor = 0;
 
   for (const match of value.matchAll(BARE_URL)) {
     const start = match.index;
+    const matched = match[0];
+    if (isCardReferenceUrl(matched) && !linkifyCardLinks) continue;
+
     if (start > cursor) nodes.push({ type: "text", value: value.slice(cursor, start) });
 
-    const matched = match[0];
     const [label, trailing] = splitTrailingPunctuation(matched);
     if (label) {
       nodes.push({
@@ -58,22 +70,25 @@ function linkifyText(value: string): MarkdownNode[] {
   return nodes.length > 0 ? nodes : [{ type: "text", value }];
 }
 
-function transformTextNodes(parent: MarkdownNode) {
+function transformTextNodes(parent: MarkdownNode, linkifyCardLinks: boolean) {
   if (!parent.children || NON_LINK_PARENTS.has(parent.type)) return;
 
   parent.children = parent.children.flatMap((child) => {
-    if (child.type === "text" && typeof child.value === "string") return linkifyText(child.value);
-    transformTextNodes(child);
+    if (child.type === "text" && typeof child.value === "string") {
+      return linkifyText(child.value, linkifyCardLinks);
+    }
+    transformTextNodes(child, linkifyCardLinks);
     return child;
   });
 }
 
-export function remarkBareLinks() {
-  return (tree: Root) => transformTextNodes(tree as unknown as MarkdownNode);
+export function remarkBareLinks(linkifyCardLinks = false) {
+  return () => (tree: Root) =>
+    transformTextNodes(tree as unknown as MarkdownNode, linkifyCardLinks);
 }
 
-const markdownComponents = {
-  a: ({ node: _node, ...props }) => (
+function MarkdownAnchor({ node: _node, ...props }: React.ComponentProps<"a"> & { node?: unknown }) {
+  return (
     <a
       {...props}
       target="_blank"
@@ -82,21 +97,49 @@ const markdownComponents = {
       onClick={(event) => event.stopPropagation()}
       className="font-medium text-primary underline decoration-primary/50 underline-offset-2 transition-colors hover:text-primary/80 hover:decoration-primary"
     />
-  ),
-} satisfies Components;
+  );
+}
 
-export function MarkdownContent({ children }: { children: string }) {
+function CardAwareAnchor({
+  node: _node,
+  href,
+  children,
+  ...rest
+}: React.ComponentProps<"a"> & { node?: unknown }) {
+  if (href && isCardReferenceUrl(href)) return <CardLink href={href}>{children}</CardLink>;
   return (
-    <ReactMarkdown remarkPlugins={[remarkBareLinks]} components={markdownComponents}>
+    <MarkdownAnchor href={href} {...rest}>
+      {children}
+    </MarkdownAnchor>
+  );
+}
+
+const markdownComponents = { a: MarkdownAnchor } satisfies Components;
+const cardLinkComponents = { a: CardAwareAnchor } satisfies Components;
+
+export function MarkdownContent({
+  children,
+  cardLinks = false,
+}: {
+  children: string;
+  cardLinks?: boolean;
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkBareLinks(cardLinks)]}
+      urlTransform={cardLinks ? urlTransform : undefined}
+      components={cardLinks ? cardLinkComponents : markdownComponents}
+    >
       {children}
     </ReactMarkdown>
   );
 }
 
 export function MarkdownInline({ children }: { children: string }) {
+  // Titles and other inline text never resolve card reference links.
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkBareLinks]}
+      remarkPlugins={[remarkBareLinks(false)]}
       components={markdownComponents}
       allowedElements={["a", "strong", "em", "del", "code", "br"]}
       unwrapDisallowed

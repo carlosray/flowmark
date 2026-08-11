@@ -19,6 +19,7 @@ import {
   Pencil,
   CheckCircle2,
   ChevronDown,
+  Columns3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -127,6 +128,7 @@ function CardEditor({
   const board = useBoard();
   const { tags } = board;
   const sync = useBoardSync();
+  const column = board.columns.find((candidate) => candidate.cardIds.includes(card.id));
   const cardTags = card.tagIds
     .map((id) => tags.find((t) => t.id === id))
     .filter(Boolean) as typeof tags;
@@ -198,6 +200,7 @@ function CardEditor({
           <div ref={scrollContentRef} className="flex min-h-full flex-col gap-5 p-4 sm:p-6">
             {/* Meta row */}
             <div className="flex flex-wrap items-center gap-2">
+              {column && <CardColumnChip name={column.name} />}
               <TagPicker card={card}>
                 <button className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md px-2 py-1 hover:bg-accent">
                   <TagIcon size={11} /> Tags
@@ -228,6 +231,8 @@ function CardEditor({
                 }}
                 multiline
                 editWhenEmpty
+                cardLinks
+                cardMentions
                 ariaLabel="Edit card description"
                 placeholder="Add a description…"
                 previewClassName="prose-flow min-h-[180px] rounded-md border border-border bg-surface-sunken p-4 text-sm text-foreground/90"
@@ -327,6 +332,8 @@ function CardEditor({
                       onSave={(body) => store.updateComment(card.id, c.id, body)}
                       normalizeValue={(body) => body.trim() || c.body}
                       multiline
+                      cardLinks
+                      cardMentions
                       ariaLabel="Edit comment"
                       previewClassName="prose-flow rounded px-1 py-0.5 text-sm text-foreground/90 hover:bg-surface-hover"
                       editorClassName="min-h-[96px]"
@@ -415,6 +422,15 @@ function CardEditor({
         )}
       </div>
     </div>
+  );
+}
+
+export function CardColumnChip({ name }: { name: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 border border-border bg-surface-sunken rounded-md px-2 py-1 text-xs text-muted-foreground">
+      <Columns3 size={11} />
+      {name}
+    </span>
   );
 }
 
