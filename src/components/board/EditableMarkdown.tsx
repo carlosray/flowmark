@@ -164,7 +164,7 @@ export function EditableMarkdown({
     };
 
     return (
-      <div className={cn(cardMentions && "relative")}>
+      <div className={cn("min-w-0 flex-1", cardMentions && "relative")}>
         {multiline ? (
           <textarea
             {...sharedProps}

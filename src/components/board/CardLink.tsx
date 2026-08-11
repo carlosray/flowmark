@@ -6,7 +6,15 @@ import type { Card } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CardLinkContext } from "./card-link-context";
 
-export function CardLink({ href, children }: { href: string; children?: React.ReactNode }) {
+export function CardLink({
+  href,
+  children,
+  bare = false,
+}: {
+  href: string;
+  children?: React.ReactNode;
+  bare?: boolean;
+}) {
   const context = useContext(CardLinkContext);
   const cardId = resolveCardReferenceTarget(href, context?.workspacePath ?? null);
   const card = context && cardId ? context.cards[cardId] : undefined;
@@ -14,6 +22,29 @@ export function CardLink({ href, children }: { href: string; children?: React.Re
   if (!context || !card) {
     // Unknown, cross-workspace, or provider-less references stay plain text.
     return <span>{children}</span>;
+  }
+
+  if (!bare) {
+    // Authored Markdown links keep their label and regular link styling,
+    // but still navigate to the card in-app.
+    return (
+      <a
+        href={href}
+        title={`${card.title} (cards/${card.id}.md)`}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          context.openCard(card.id);
+        }}
+        className={cn(
+          "font-medium text-primary underline decoration-primary/50 underline-offset-2 transition-colors hover:text-primary/80 hover:decoration-primary",
+          card.completed && "line-through",
+        )}
+      >
+        {children}
+      </a>
+    );
   }
 
   return (

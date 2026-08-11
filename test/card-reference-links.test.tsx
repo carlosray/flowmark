@@ -49,12 +49,20 @@ test("same-workspace bare card references render as titled card links", () => {
   assert.match(html, /cards\/card_alpha1\.md/);
 });
 
-test("Markdown links to card references render with the authored label replaced by the card title", () => {
+test("Markdown links to card references keep their authored label and regular link styling", () => {
   const html = render("See [that flaky thing](flowmark://card_alpha1).");
 
-  assert.match(html, /<button/);
-  assert.match(html, /Fix flaky tests/);
-  assert.doesNotMatch(html, /that flaky thing/);
+  assert.doesNotMatch(html, /<button/);
+  assert.match(html, /<a href="flowmark:\/\/card_alpha1"/);
+  assert.match(html, />that flaky thing<\/a>/);
+  assert.match(html, /underline/);
+});
+
+test("completed cards strike through authored Markdown link labels", () => {
+  const html = render("See [the shipped work](flowmark://card_done22).");
+
+  assert.match(html, />the shipped work<\/a>/);
+  assert.match(html, /line-through/);
 });
 
 test("trailing punctuation stays outside the card reference link", () => {

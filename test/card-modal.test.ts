@@ -210,4 +210,10 @@ test("descriptions and comments resolve card references while titles stay plain"
   assert.match(source, /value=\{c\.body\}[\s\S]*multiline[\s\S]*cardLinks[\s\S]*cardMentions/);
   const titleBlock = /value=\{title\}([\s\S]*?)ariaLabel="Edit card title"/.exec(source)?.[1] ?? "";
   assert.doesNotMatch(titleBlock, /cardLinks|cardMentions/);
+
+  const editor = await readFile(
+    new URL("../src/components/board/EditableMarkdown.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(editor, /cn\("min-w-0 flex-1", cardMentions && "relative"\)/);
 });

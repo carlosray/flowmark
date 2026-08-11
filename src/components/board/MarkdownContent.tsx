@@ -100,13 +100,34 @@ function MarkdownAnchor({ node: _node, ...props }: React.ComponentProps<"a"> & {
   );
 }
 
+function textContentOf(children: React.ReactNode): string {
+  if (children === null || children === undefined || typeof children === "boolean") return "";
+  if (typeof children === "string") return children;
+  if (typeof children === "number") return String(children);
+  if (Array.isArray(children)) return children.map(textContentOf).join("");
+  if (typeof children === "object" && "props" in children) {
+    return textContentOf(
+      (children as React.ReactElement<{ children?: React.ReactNode }>).props.children,
+    );
+  }
+  return "";
+}
+
 function CardAwareAnchor({
   node: _node,
   href,
   children,
   ...rest
 }: React.ComponentProps<"a"> & { node?: unknown }) {
-  if (href && isCardReferenceUrl(href)) return <CardLink href={href}>{children}</CardLink>;
+  if (href && isCardReferenceUrl(href)) {
+    // Bare `flowmark://card_x` references (label equals the URL) render as a
+    // card chip; authored Markdown links keep their label and link styling.
+    return (
+      <CardLink href={href} bare={textContentOf(children) === href}>
+        {children}
+      </CardLink>
+    );
+  }
   return (
     <MarkdownAnchor href={href} {...rest}>
       {children}
