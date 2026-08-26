@@ -114,19 +114,24 @@ substitution:
 Everything resolves against the occurrence instant, interpreted in the rule's
 timezone.
 
-| Variable | Type | Value |
-| --- | --- | --- |
-| `date` | date | The occurrence date. |
-| `due_date` | date | The resolved due date. Empty string when `mode: none`. |
-| `weekday` | text | Day-of-week name. |
-| `week` | number | ISO week number. |
-| `month` | date | The occurrence date, for month-oriented formats. |
-| `year` | date | The occurrence date, for year-oriented formats. |
+Every variable is a projection of one underlying date. Arithmetic shifts that
+date; the variable then reports its own aspect of the result. This keeps the
+model uniform — there are no variable/operator combinations to forbid.
 
-Arithmetic (`+2d`, `-1w`, `+1m`) applies to date-typed variables only. Applying
-it to `weekday` shifts the day first and then names it, so `{{weekday+2d}}`
-reads "on Thursday" for a Tuesday occurrence. Applying it to `week` shifts by
-whole weeks.
+| Variable | Underlying date | Renders | Takes a format |
+| --- | --- | --- | --- |
+| `date` | the occurrence date | the date itself | yes |
+| `due_date` | the resolved due date | the date itself, or empty when `mode: none` | yes |
+| `weekday` | the occurrence date | the day-of-week name | no |
+| `week` | the occurrence date | the ISO week number | no |
+
+Arithmetic is `±N` followed by `d` (days), `w` (weeks), or `m` (months), and
+applies to any variable. `{{weekday+2d}}` names the day two days after the
+occurrence; `{{week+1w}}` gives next week's number.
+
+`month` and `year` are formats rather than variables: `{{date:month}}` and
+`{{date:year}}` cover what separate variables would have, without a second way
+to say the same thing.
 
 Formats are named rather than pattern-based:
 
@@ -151,9 +156,9 @@ Locale comes from a new optional `ui.locale` in `flowmark.yaml`, defaulting to
 `en`. Without it, `long` would render differently on different machines from the
 same source file, which violates the source-of-truth contract.
 
-An unknown variable, an unparsable expression, or a format applied to an
-incompatible variable is a **validation error**. A broken template cannot reach
-disk from the UI and cannot pass `flowmark validate`.
+An unknown variable, an unparsable expression, an unknown format, or a format
+applied to `weekday` or `week` is a **validation error**. A broken template
+cannot reach disk from the UI and cannot pass `flowmark validate`.
 
 ### Card origin marker
 
