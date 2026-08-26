@@ -47,6 +47,8 @@ export interface CardResource {
   archivedAt: string | null;
   body: string;
   archived: boolean;
+  /** Raw frontmatter, so writers can preserve fields the projection drops. */
+  source: RecordValue;
 }
 
 export interface OwnedResource {
@@ -1574,6 +1576,7 @@ export async function validateWorkspace(
         archivedAt,
         body: parsed.body,
         archived,
+        source: value,
       };
       validateDate(card.dueAt, collector, filePath, "due_at");
       validateDate(card.completedAt, collector, filePath, "completed_at");

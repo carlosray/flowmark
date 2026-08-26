@@ -109,8 +109,18 @@ export async function readWorkspaceBoard(root: string): Promise<Board> {
   return projectWorkspaceBoard(result.workspace);
 }
 
-function yamlCard(card: Card, columnId: string, checklistIds: string[], commentIds: string[]) {
+function yamlCard(
+  card: Card,
+  columnId: string,
+  checklistIds: string[],
+  commentIds: string[],
+  original: Record<string, unknown> | undefined,
+) {
+  // Spread the source first so fields this projection does not model — the
+  // scheduled-creation `origin` marker, anything a future version adds — survive
+  // a board write. Known fields below overwrite their stale values in place.
   return {
+    ...sourceFields(original),
     schema_version: 1,
     id: card.id,
     title: card.title,
@@ -284,7 +294,13 @@ export async function writeWorkspaceBoard(root: string, board: Board): Promise<v
             await transaction.remove(join(root, commentsDir, `${commentId}.md`));
         }
       }
-      const cardData = yamlCard(card, location.id, checklistIds, commentIds);
+      const cardData = yamlCard(
+        card,
+        location.id,
+        checklistIds,
+        commentIds,
+        snapshot.cards.get(card.id)?.source,
+      );
       cardData.position = location.position;
       await transaction.write(
         join(root, cardsDir, `${card.id}.md`),
@@ -297,6 +313,7 @@ export async function writeWorkspaceBoard(root: string, board: Board): Promise<v
         await transaction.write(
           join(root, archiveDir, "cards", `${id}.md`),
           `---\n${stringify({
+            ...sourceFields(card.source),
             schema_version: 1,
             id: card.id,
             title: card.title,
