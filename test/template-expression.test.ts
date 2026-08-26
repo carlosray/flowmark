@@ -83,10 +83,7 @@ test("tolerates whitespace inside the braces", () => {
 });
 
 test("renders several expressions in one string", () => {
-  assert.equal(
-    renderTemplateText("{{weekday}}, week {{week}}", context),
-    "Wednesday, week 35",
-  );
+  assert.equal(renderTemplateText("{{weekday}}, week {{week}}", context), "Wednesday, week 35");
 });
 
 test("accepts valid text with no issues", () => {

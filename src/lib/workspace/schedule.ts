@@ -218,8 +218,7 @@ export function occurrencesBetween(
 ): Date[] {
   if (after.getTime() >= until.getTime()) return [];
   const zone = trigger.timezone ?? timeZone;
-  if (trigger.cron !== undefined)
-    return cronOccurrences(trigger.cron, after, until, zone, limit);
+  if (trigger.cron !== undefined) return cronOccurrences(trigger.cron, after, until, zone, limit);
   if (trigger.every !== undefined)
     return everyOccurrences(trigger.every, after, until, zone, limit);
   return [];

@@ -12,6 +12,8 @@ import {
 } from "../rule-model";
 import { THEME_IDS, isThemeId } from "../themes";
 import { COMPONENT_FIELDS } from "./schema-catalog";
+import { validateTemplateText } from "../template-expression";
+import { isCalendarDate, isTimeOfDay, isValidCron } from "./schedule";
 
 export type Severity = "error" | "warning";
 
@@ -489,10 +491,323 @@ function ref(
     );
 }
 
+function validateScheduleTrigger(trigger: RecordValue, collector: Collector, filePath: string) {
+  const timeZone = typeof trigger.timezone === "string" ? trigger.timezone : undefined;
+  const hasCron = trigger.cron !== undefined;
+  const hasEvery = trigger.every !== undefined;
+  if (hasCron === hasEvery) {
+    collector.add(
+      "E_INVALID_RULE_TRIGGER",
+      filePath,
+      "trigger",
+      hasCron
+        ? "Scheduled rule accepts either cron or every, not both."
+        : "Scheduled rule requires either a cron expression or an every interval.",
+      "Provide exactly one of cron and every.",
+    );
+    return;
+  }
+  if (hasCron) {
+    if (typeof trigger.cron !== "string" || !isValidCron(trigger.cron, timeZone))
+      collector.add(
+        "E_INVALID_CRON",
+        filePath,
+        "trigger.cron",
+        "Cron expression or timezone is invalid.",
+        "Use a valid five-field cron expression and IANA timezone.",
+        typeof trigger.cron === "string" ? trigger.cron : undefined,
+      );
+    return;
+  }
+  const every = trigger.every;
+  if (!isRecord(every)) {
+    collector.add(
+      "E_INVALID_RULE_TRIGGER",
+      filePath,
+      "trigger.every",
+      "Every interval must be a mapping.",
+      "Use a mapping with days or weeks and an anchor date.",
+    );
+    return;
+  }
+  checkUnknownKeys(
+    every,
+    ["days", "weeks", "anchor", "at"],
+    collector,
+    filePath,
+    true,
+    "trigger.every",
+  );
+  const hasDays = every.days !== undefined;
+  const hasWeeks = every.weeks !== undefined;
+  if (hasDays === hasWeeks)
+    collector.add(
+      "E_INVALID_RULE_TRIGGER",
+      filePath,
+      "trigger.every",
+      "Every interval takes exactly one of days and weeks.",
+      "Set either days or weeks to a positive whole number.",
+    );
+  for (const field of ["days", "weeks"] as const) {
+    const value = every[field];
+    if (value === undefined) continue;
+    if (typeof value !== "number" || !Number.isInteger(value) || value <= 0)
+      collector.add(
+        "E_INVALID_RULE_TRIGGER",
+        filePath,
+        `trigger.every.${field}`,
+        `Every interval ${field} must be a positive whole number.`,
+        `Set ${field} to 1 or more.`,
+      );
+  }
+  if (!isCalendarDate(every.anchor))
+    collector.add(
+      "E_INVALID_RULE_TRIGGER",
+      filePath,
+      "trigger.every.anchor",
+      "Every interval requires a real anchor date.",
+      "Set anchor to an existing YYYY-MM-DD date the interval counts from.",
+      typeof every.anchor === "string" ? every.anchor : undefined,
+    );
+  if (every.at !== undefined && !isTimeOfDay(every.at))
+    collector.add(
+      "E_INVALID_RULE_TRIGGER",
+      filePath,
+      "trigger.every.at",
+      "Every interval time must be HH:MM in 24-hour form.",
+      "Use a time such as 08:00, or omit at for midnight.",
+      typeof every.at === "string" ? every.at : undefined,
+    );
+}
+
+const TEMPLATE_CARD_FIELDS = ["title", "column_id", "tag_ids", "due"] as const;
+const TEMPLATE_DUE_MODES = ["none", "offset", "fixed"] as const;
+
+function checkExpressions(text: string, collector: Collector, filePath: string, fieldPath: string) {
+  for (const issue of validateTemplateText(text))
+    collector.add(
+      "E_INVALID_TEMPLATE_EXPRESSION",
+      filePath,
+      fieldPath,
+      `${issue.expression} is not a usable expression. ${issue.message}`,
+      "Use {{date}}, {{due_date}}, {{weekday}}, or {{week}} with optional arithmetic and a named format.",
+      issue.expression,
+    );
+}
+
+function validateTemplateDue(due: RecordValue, collector: Collector, filePath: string) {
+  const field = (name: string) => `card.due.${name}`;
+  const mode = due.mode;
+  if (typeof mode !== "string" || !(TEMPLATE_DUE_MODES as readonly string[]).includes(mode)) {
+    collector.add(
+      "E_INVALID_TEMPLATE_DUE",
+      filePath,
+      field("mode"),
+      "Template due mode must be none, offset, or fixed.",
+      "Use mode: none, mode: offset, or mode: fixed.",
+      typeof mode === "string" ? mode : undefined,
+    );
+    return;
+  }
+  if (mode === "offset") {
+    if (typeof due.offset_days !== "number" || !Number.isInteger(due.offset_days))
+      collector.add(
+        "E_INVALID_TEMPLATE_DUE",
+        filePath,
+        field("offset_days"),
+        "Offset due mode requires an integer offset_days.",
+        "Set offset_days to a whole number of days.",
+      );
+    if (due.date !== undefined)
+      collector.add(
+        "E_INVALID_TEMPLATE_DUE",
+        filePath,
+        field("date"),
+        "Offset due mode does not accept a fixed date.",
+        "Remove date or use mode: fixed.",
+      );
+    return;
+  }
+  if (mode === "fixed") {
+    if (!isCalendarDate(due.date))
+      collector.add(
+        "E_INVALID_TEMPLATE_DUE",
+        filePath,
+        field("date"),
+        "Fixed due mode requires a real calendar date.",
+        "Set date to an existing YYYY-MM-DD date.",
+      );
+    if (due.offset_days !== undefined)
+      collector.add(
+        "E_INVALID_TEMPLATE_DUE",
+        filePath,
+        field("offset_days"),
+        "Fixed due mode does not accept offset_days.",
+        "Remove offset_days or use mode: offset.",
+      );
+    return;
+  }
+  if (due.offset_days !== undefined || due.date !== undefined)
+    collector.add(
+      "E_INVALID_TEMPLATE_DUE",
+      filePath,
+      field("mode"),
+      "Due mode none does not accept offset_days or date.",
+      "Remove the extra fields or choose another mode.",
+    );
+}
+
+function validateTemplate(
+  value: RecordValue,
+  body: string,
+  columns: Map<string, RecordValue>,
+  tags: Map<string, RecordValue>,
+  collector: Collector,
+  filePath: string,
+  strict: boolean,
+) {
+  checkUnknownKeys(value, [...COMPONENT_FIELDS.template], collector, filePath, strict);
+  readString(value, "name", collector, filePath);
+  validateDate(
+    readString(value, "created_at", collector, filePath) ?? null,
+    collector,
+    filePath,
+    "created_at",
+  );
+  validateDate(
+    readString(value, "updated_at", collector, filePath) ?? null,
+    collector,
+    filePath,
+    "updated_at",
+  );
+  checkExpressions(body, collector, filePath, "body");
+
+  const card = value.card;
+  if (!isRecord(card))
+    collector.add(
+      card === undefined ? "E_REQUIRED_FIELD" : "E_INVALID_FIELD_TYPE",
+      filePath,
+      "card",
+      "Template card defaults must be a mapping.",
+      "Add a card mapping with at least a title.",
+    );
+  else {
+    checkUnknownKeys(card, [...TEMPLATE_CARD_FIELDS], collector, filePath, strict, "card");
+    if (typeof card.title !== "string" || card.title.trim() === "")
+      collector.add(
+        "E_REQUIRED_FIELD",
+        filePath,
+        "card.title",
+        "Template card title is required.",
+        "Set card.title to the title the created card should carry.",
+      );
+    else checkExpressions(card.title, collector, filePath, "card.title");
+    if (card.column_id !== undefined && card.column_id !== null) {
+      if (typeof card.column_id !== "string")
+        collector.add(
+          "E_INVALID_FIELD_TYPE",
+          filePath,
+          "card.column_id",
+          "Template column_id must be a column ID.",
+          "Use an existing column ID or remove the field.",
+        );
+      else ref(columns, card.column_id, "column", collector, filePath, "card.column_id");
+    }
+    if (card.tag_ids !== undefined) {
+      if (!Array.isArray(card.tag_ids) || card.tag_ids.some((tag) => typeof tag !== "string"))
+        collector.add(
+          "E_INVALID_FIELD_TYPE",
+          filePath,
+          "card.tag_ids",
+          "Template tag_ids must be a list of tag IDs.",
+          "Use a YAML list of existing tag IDs.",
+        );
+      else
+        for (const [index, tagId] of (card.tag_ids as string[]).entries())
+          ref(tags, tagId, "tag", collector, filePath, `card.tag_ids[${index}]`);
+    }
+    if (card.due !== undefined) {
+      if (!isRecord(card.due))
+        collector.add(
+          "E_INVALID_TEMPLATE_DUE",
+          filePath,
+          "card.due",
+          "Template due must be a mapping.",
+          "Use a mapping with a mode field.",
+        );
+      else validateTemplateDue(card.due, collector, filePath);
+    }
+  }
+
+  if (value.checklist !== undefined) {
+    if (!Array.isArray(value.checklist) || value.checklist.some((item) => typeof item !== "string"))
+      collector.add(
+        "E_INVALID_FIELD_TYPE",
+        filePath,
+        "checklist",
+        "Template checklist must be a list of strings.",
+        "Use a YAML list of checklist item text.",
+      );
+    else
+      for (const [index, item] of (value.checklist as string[]).entries())
+        checkExpressions(item, collector, filePath, `checklist[${index}]`);
+  }
+}
+
+function validateCardOrigin(origin: unknown, collector: Collector, filePath: string) {
+  if (origin === undefined || origin === null) return;
+  if (!isRecord(origin)) {
+    collector.add(
+      "E_INVALID_FIELD_TYPE",
+      filePath,
+      "origin",
+      "Card origin must be a mapping.",
+      "Use a mapping with rule_id, template_id, and occurrence, or remove the field.",
+    );
+    return;
+  }
+  checkUnknownKeys(
+    origin,
+    ["rule_id", "template_id", "occurrence"],
+    collector,
+    filePath,
+    true,
+    "origin",
+  );
+  for (const [field, pattern] of [
+    ["rule_id", /^rule_[a-z0-9]+(?:_[a-z0-9]+)*$/],
+    ["template_id", /^template_[a-z0-9]+(?:_[a-z0-9]+)*$/],
+  ] as const) {
+    const value = origin[field];
+    if (typeof value !== "string" || !pattern.test(value))
+      collector.add(
+        "E_INVALID_FIELD_TYPE",
+        filePath,
+        `origin.${field}`,
+        `Card origin ${field} must be a valid ID.`,
+        `Set origin.${field} to the ID that created this card.`,
+        typeof value === "string" ? value : undefined,
+      );
+  }
+  const occurrence = origin.occurrence;
+  if (typeof occurrence !== "string") {
+    collector.add(
+      "E_INVALID_FIELD_TYPE",
+      filePath,
+      "origin.occurrence",
+      "Card origin occurrence must be a timestamp.",
+      "Set origin.occurrence to the scheduled instant in ISO 8601.",
+    );
+    return;
+  }
+  validateDate(occurrence, collector, filePath, "origin.occurrence");
+}
+
 function validateRuleReferences(
   rule: RecordValue,
   columns: Map<string, RecordValue>,
   tags: Map<string, RecordValue>,
+  templates: Map<string, RecordValue>,
   collector: Collector,
   filePath: string,
   strict: boolean,
@@ -522,7 +837,7 @@ function validateRuleReferences(
     trigger.type === "card_entered_column"
       ? ["type", "column_id"]
       : trigger.type === "schedule"
-        ? ["type", "cron", "timezone"]
+        ? ["type", "cron", "every", "timezone"]
         : ["type"];
   checkUnknownKeys(trigger, triggerFields, collector, filePath, strict, "trigger");
   if (trigger.type === "card_entered_column") {
@@ -537,32 +852,7 @@ function validateRuleReferences(
       );
     else ref(columns, trigger.column_id, "column", collector, filePath, "trigger.column_id");
   }
-  if (trigger.type === "schedule") {
-    if (typeof trigger.cron !== "string")
-      collector.add(
-        "E_INVALID_CRON",
-        filePath,
-        "trigger.cron",
-        "Scheduled rule requires a cron expression.",
-        "Provide a five-field cron expression.",
-      );
-    else {
-      try {
-        new Cron(trigger.cron, {
-          timezone: typeof trigger.timezone === "string" ? trigger.timezone : undefined,
-        });
-      } catch {
-        collector.add(
-          "E_INVALID_CRON",
-          filePath,
-          "trigger.cron",
-          "Cron expression or timezone is invalid.",
-          "Use a valid cron expression and IANA timezone.",
-          trigger.cron,
-        );
-      }
-    }
-  }
+  if (trigger.type === "schedule") validateScheduleTrigger(trigger, collector, filePath);
   const conditionTypes = new Set<string>(RULE_CONDITION_TYPES);
   const conditions = rule.conditions === undefined ? [] : rule.conditions;
   if (!Array.isArray(conditions)) {
@@ -759,7 +1049,9 @@ function validateRuleReferences(
             ? ["type", "tag_id"]
             : action.type === "sort_cards"
               ? ["type", "scope", "by", "direction", "nulls"]
-              : ["type"];
+              : action.type === "create_card"
+                ? ["type", "template_id", "column_id"]
+                : ["type"];
     checkUnknownKeys(action, actionFields, collector, filePath, strict, `actions[${index}]`);
     if (action.type === "move_card") {
       if (typeof action.column_id !== "string")
@@ -823,6 +1115,62 @@ function validateRuleReferences(
           "End-of-day due-date action does not accept offset_days.",
           "Remove offset_days or use mode: offset.",
           action.offset_days,
+        );
+    }
+    if (action.type === "create_card") {
+      if (typeof action.template_id !== "string")
+        collector.add(
+          "E_INVALID_RULE_ACTION",
+          filePath,
+          `actions[${index}].template_id`,
+          "Create-card action requires template_id.",
+          "Set template_id to an existing template ID.",
+          typeof action.template_id === "string" ? action.template_id : undefined,
+        );
+      else
+        ref(
+          templates,
+          action.template_id,
+          "template",
+          collector,
+          filePath,
+          `actions[${index}].template_id`,
+        );
+      if (action.column_id !== undefined) {
+        if (typeof action.column_id !== "string")
+          collector.add(
+            "E_INVALID_RULE_ACTION",
+            filePath,
+            `actions[${index}].column_id`,
+            "Create-card column_id must be a column ID.",
+            "Use an existing column ID or remove the field.",
+          );
+        else
+          ref(
+            columns,
+            action.column_id,
+            "column",
+            collector,
+            filePath,
+            `actions[${index}].column_id`,
+          );
+      }
+      if (trigger.type !== "schedule")
+        collector.add(
+          "E_INVALID_RULE_ACTION",
+          filePath,
+          `actions[${index}]`,
+          "Cards can only be created by a scheduled rule.",
+          "Use trigger type schedule, or remove the create_card action.",
+          trigger.type,
+        );
+      if (Array.isArray(rule.conditions) && rule.conditions.length > 0)
+        collector.add(
+          "E_INVALID_RULE_ACTION",
+          filePath,
+          `actions[${index}]`,
+          "A rule that creates a card cannot carry conditions, because no card exists yet to test.",
+          "Remove the conditions, or move them onto a rule triggered by card_created.",
         );
     }
     if (
@@ -1019,7 +1367,6 @@ export async function validateWorkspace(
     ["rule", rulesDir],
     ["checklist", checklistsDir],
     ["checklist", `${archiveDir}/checklists`],
-    ["template", templatesDir],
   ] as const;
   const columns = new Map<string, IdentifiedRecord>();
   const tags = new Map<string, IdentifiedRecord>();
@@ -1084,37 +1431,6 @@ export async function validateWorkspace(
         );
         register(rules, { ...value, id, __filePath: filePath }, collector, filePath);
       }
-      if (kind === "template") {
-        checkUnknownKeys(
-          value,
-          [...COMPONENT_FIELDS.template],
-          collector,
-          filePath,
-          options.strict === true,
-        );
-        readString(value, "name", collector, filePath);
-        if (value.card !== undefined && !isRecord(value.card))
-          collector.add(
-            "E_INVALID_FIELD_TYPE",
-            filePath,
-            "card",
-            "Template card defaults must be a mapping.",
-            "Use a YAML mapping for card defaults.",
-          );
-        if (
-          value.checklist !== undefined &&
-          (!Array.isArray(value.checklist) ||
-            value.checklist.some((item) => typeof item !== "string"))
-        )
-          collector.add(
-            "E_INVALID_FIELD_TYPE",
-            filePath,
-            "checklist",
-            "Template checklist must be a list of strings.",
-            "Use a YAML list of checklist item text.",
-          );
-        register(templates, { ...value, id, __filePath: filePath }, collector, filePath);
-      }
       if (kind === "checklist") {
         checkUnknownKeys(
           value,
@@ -1164,6 +1480,7 @@ export async function validateWorkspace(
       }
     }
   const markdownKinds = [
+    ["template", templatesDir, false],
     ["card", cardsDir, false],
     ["card", `${archiveDir}/cards`, true],
     ["comment", commentsDir, false],
@@ -1179,6 +1496,24 @@ export async function validateWorkspace(
       const id = readString(value, "id", collector, filePath);
       validateId(id, kind, filePath, filePath.split("/").at(-1) ?? "", collector);
       if (!id) continue;
+      if (kind === "template") {
+        validateTemplate(
+          value,
+          parsed.body,
+          columns,
+          tags,
+          collector,
+          filePath,
+          options.strict === true,
+        );
+        register(
+          templates,
+          { ...value, id, __filePath: filePath, __body: parsed.body },
+          collector,
+          filePath,
+        );
+        continue;
+      }
       if (kind === "comment") {
         checkUnknownKeys(
           value,
@@ -1218,6 +1553,7 @@ export async function validateWorkspace(
         filePath,
         options.strict === true,
       );
+      validateCardOrigin(value.origin, collector, filePath);
       const columnId = readNullableString(value, "column_id", collector, filePath);
       const previousColumnId = readNullableString(value, "previous_column_id", collector, filePath);
       const archivedAt = readNullableString(value, "archived_at", collector, filePath);
@@ -1389,6 +1725,7 @@ export async function validateWorkspace(
       rule,
       columns,
       tags,
+      templates,
       collector,
       String(rule.__filePath ?? `rules/${rule.id}.yaml`),
       options.strict === true,

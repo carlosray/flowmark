@@ -37,6 +37,7 @@ export const COMPONENT_FIELDS: Record<ComponentName, readonly string[]> = {
     "tag_ids",
     "checklist_ids",
     "comment_ids",
+    "origin",
     "created_at",
     "updated_at",
     "archived_at",
@@ -198,6 +199,7 @@ const workspaceSchema = schema(
           uniqueItems: true,
         },
         theme: { enum: [...THEME_IDS] },
+        locale: { type: "string", minLength: 2 },
       },
       required: ["column_order"],
     },
@@ -221,6 +223,16 @@ const cardSchema = schema(
     tag_ids: STRING_ARRAY,
     checklist_ids: STRING_ARRAY,
     comment_ids: STRING_ARRAY,
+    origin: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        rule_id: { type: "string", pattern: "^rule_[a-z0-9]+(?:_[a-z0-9]+)*$" },
+        template_id: { type: "string", pattern: "^template_[a-z0-9]+(?:_[a-z0-9]+)*$" },
+        occurrence: DATE_TIME,
+      },
+      required: ["rule_id", "template_id", "occurrence"],
+    },
     created_at: DATE_TIME,
     updated_at: DATE_TIME,
     archived_at: NULLABLE_DATE_TIME,
@@ -298,6 +310,26 @@ const triggerSchema = {
         timezone: { type: "string" },
       },
       required: ["type", "cron"],
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        type: { const: "schedule" },
+        every: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            days: { type: "integer", minimum: 1 },
+            weeks: { type: "integer", minimum: 1 },
+            anchor: { type: "string", format: "date" },
+            at: { type: "string", pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+          },
+          required: ["anchor"],
+        },
+        timezone: { type: "string" },
+      },
+      required: ["type", "every"],
     },
   ],
 } as const;
@@ -393,6 +425,16 @@ const actionSchema = {
       type: "object",
       additionalProperties: false,
       properties: {
+        type: { const: "create_card" },
+        template_id: { type: "string", pattern: "^template_[a-z0-9]+(?:_[a-z0-9]+)*$" },
+        column_id: { type: "string", pattern: "^column_[a-z0-9]+(?:_[a-z0-9]+)*$" },
+      },
+      required: ["type", "template_id"],
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      properties: {
         type: { const: "sort_cards" },
         scope: { const: "all_columns" },
         by: { const: "due_at" },
@@ -471,16 +513,36 @@ const checklistSchema = schema(
 const templateSchema = schema(
   "template",
   "Flowmark card template",
-  "Reusable defaults for creating cards and checklist items.",
+  "Reusable card defaults instantiated by scheduled create_card rules. Text fields accept {{date}}, {{due_date}}, {{weekday}}, and {{week}} expressions with optional arithmetic and a named format.",
   {
     id: { type: "string", pattern: "^template_[a-z0-9]+(?:_[a-z0-9]+)*$" },
     name: { type: "string", minLength: 1 },
-    card: { type: "object" },
+    card: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        title: { type: "string", minLength: 1 },
+        column_id: { oneOf: [{ type: "string", pattern: "^column_" }, { type: "null" }] },
+        tag_ids: STRING_ARRAY,
+        due: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            mode: { enum: ["none", "offset", "fixed"] },
+            offset_days: { type: "integer" },
+            date: { type: "string", format: "date" },
+          },
+          required: ["mode"],
+        },
+      },
+      required: ["title"],
+    },
     checklist: { type: "array", items: { type: "string" } },
     created_at: DATE_TIME,
     updated_at: DATE_TIME,
   },
-  ["id", "name", "created_at", "updated_at"],
+  ["id", "name", "card", "created_at", "updated_at"],
+  { format: "markdown-with-yaml-frontmatter", body: { required: false } },
 );
 
 const CATALOG: Record<ComponentName, ComponentSchema> = {

@@ -43,6 +43,7 @@ test("rule language exports the complete declarative vocabulary", () => {
     "mark_uncompleted",
     "archive_card",
     "sort_cards",
+    "create_card",
   ]);
   assert.deepEqual(DUE_STATES, ["none", "overdue", "today", "tomorrow", "future"]);
   assert.deepEqual(COLUMN_CONDITION_OPERATORS, ["in", "not_in"]);

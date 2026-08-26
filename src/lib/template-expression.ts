@@ -147,8 +147,7 @@ function parseExpression(inner: string): ParsedExpression | string {
   const match = PARTS.exec(compact);
   if (!match) return "Invalid expression syntax.";
   const [, variable, sign, digits, unit, format] = match;
-  if (!(VARIABLES as readonly string[]).includes(variable))
-    return `Unknown variable ${variable}.`;
+  if (!(VARIABLES as readonly string[]).includes(variable)) return `Unknown variable ${variable}.`;
   if (format !== undefined) {
     if (FORMATLESS_VARIABLES.has(variable))
       return `The ${variable} variable does not take a format.`;
@@ -163,10 +162,7 @@ function parseExpression(inner: string): ParsedExpression | string {
   };
 }
 
-function baseCivil(
-  variable: TemplateVariable,
-  context: ExpressionContext,
-): CivilDate | null {
+function baseCivil(variable: TemplateVariable, context: ExpressionContext): CivilDate | null {
   if (variable === "due_date")
     return context.dueDate === null ? null : civilFromCalendarDate(context.dueDate);
   return civilFromInstant(context.occurrence, context.timeZone);

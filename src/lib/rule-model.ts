@@ -27,6 +27,7 @@ export const RULE_ACTION_TYPES = [
   "mark_uncompleted",
   "archive_card",
   "sort_cards",
+  "create_card",
 ] as const;
 
 export const DUE_STATES = ["none", "overdue", "today", "tomorrow", "future"] as const;

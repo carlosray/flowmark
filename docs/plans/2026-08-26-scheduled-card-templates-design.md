@@ -48,8 +48,8 @@ The component has no adopters — no UI ever produced one, the example workspace
 ships an empty directory, and no fixture references one — so the format change
 costs nothing and is not a compatibility break in practice.
 
-```markdown
-<!-- templates/template_piano.md -->
+```text
+templates/template_piano.md
 ---
 schema_version: 1
 id: template_piano
@@ -73,23 +73,23 @@ updated_at: 2026-08-26T09:00:00Z
 
 Fields:
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `name` | yes | Display name in the template list. Not a card field. |
-| `card.title` | yes | Title template. Must be non-empty after rendering. |
-| `card.column_id` | no | Target column. Falls back to `defaults.initial_column_id`. |
-| `card.tag_ids` | no | Tags applied to the created card. |
-| `card.due` | no | Due-date specification, below. Absent means no due date. |
-| `checklist` | no | List of checklist item templates, rendered like the body. |
-| body | no | Card description template. |
+| Field            | Required | Meaning                                                    |
+| ---------------- | -------- | ---------------------------------------------------------- |
+| `name`           | yes      | Display name in the template list. Not a card field.       |
+| `card.title`     | yes      | Title template. Must be non-empty after rendering.         |
+| `card.column_id` | no       | Target column. Falls back to `defaults.initial_column_id`. |
+| `card.tag_ids`   | no       | Tags applied to the created card.                          |
+| `card.due`       | no       | Due-date specification, below. Absent means no due date.   |
+| `checklist`      | no       | List of checklist item templates, rendered like the body.  |
+| body             | no       | Card description template.                                 |
 
 ### Due specification
 
 ```yaml
 due:
   mode: none | offset | fixed
-  offset_days: 2        # mode: offset only, integer, may be negative
-  date: 2026-09-01      # mode: fixed only, calendar date
+  offset_days: 2 # mode: offset only, integer, may be negative
+  date: 2026-09-01 # mode: fixed only, calendar date
 ```
 
 `mode: offset` resolves against the occurrence date in the rule's timezone, so
@@ -118,12 +118,12 @@ Every variable is a projection of one underlying date. Arithmetic shifts that
 date; the variable then reports its own aspect of the result. This keeps the
 model uniform — there are no variable/operator combinations to forbid.
 
-| Variable | Underlying date | Renders | Takes a format |
-| --- | --- | --- | --- |
-| `date` | the occurrence date | the date itself | yes |
-| `due_date` | the resolved due date | the date itself, or empty when `mode: none` | yes |
-| `weekday` | the occurrence date | the day-of-week name | no |
-| `week` | the occurrence date | the ISO week number | no |
+| Variable   | Underlying date       | Renders                                     | Takes a format |
+| ---------- | --------------------- | ------------------------------------------- | -------------- |
+| `date`     | the occurrence date   | the date itself                             | yes            |
+| `due_date` | the resolved due date | the date itself, or empty when `mode: none` | yes            |
+| `weekday`  | the occurrence date   | the day-of-week name                        | no             |
+| `week`     | the occurrence date   | the ISO week number                         | no             |
 
 Arithmetic is `±N` followed by `d` (days), `w` (weeks), or `m` (months), and
 applies to any variable. `{{weekday+2d}}` names the day two days after the
@@ -135,16 +135,16 @@ to say the same thing.
 
 Formats are named rather than pattern-based:
 
-| Format | Example (`ru`) | Example (`en`) |
-| --- | --- | --- |
-| `iso` (default for dates) | 2026-08-28 | 2026-08-28 |
-| `short` | 28.08.2026 | 8/28/2026 |
-| `long` | 28 августа | August 28 |
-| `full` | 28 августа 2026 г. | August 28, 2026 |
-| `weekday` | пятница | Friday |
-| `day` | 28 | 28 |
-| `month` | август | August |
-| `year` | 2026 | 2026 |
+| Format                    | Example (`ru`)     | Example (`en`)  |
+| ------------------------- | ------------------ | --------------- |
+| `iso` (default for dates) | 2026-08-28         | 2026-08-28      |
+| `short`                   | 28.08.2026         | 8/28/2026       |
+| `long`                    | 28 августа         | August 28       |
+| `full`                    | 28 августа 2026 г. | August 28, 2026 |
+| `weekday`                 | пятница            | Friday          |
+| `day`                     | 28                 | 28              |
+| `month`                   | август             | August          |
+| `year`                    | 2026               | 2026            |
 
 Named formats map onto `Intl.DateTimeFormat` options, which keeps the feature
 dependency-free and locale-correct. Pattern strings such as `d MMMM` were
@@ -197,7 +197,7 @@ trigger:
 actions:
   - type: create_card
     template_id: template_piano
-    column_id: column_inbox      # optional, overrides the template
+    column_id: column_inbox # optional, overrides the template
 created_at: 2026-08-26T09:00:00Z
 updated_at: 2026-08-26T09:00:00Z
 ```

@@ -25,6 +25,7 @@
 ## File Structure
 
 **Create:**
+
 - `src/lib/template-expression.ts` — parse, validate, and render `{{...}}` expressions. Pure, no fs, imported by both server and client.
 - `src/lib/workspace/schedule.ts` — turn a schedule trigger into occurrence instants. Pure, no fs.
 - `src/lib/workspace/templates-repository.ts` — read and write template resources.
@@ -41,6 +42,7 @@
 - `src/components/board/MissedOccurrencesDialog.tsx` — pending-occurrence prompt.
 
 **Modify:**
+
 - `src/lib/workspace/schema-catalog.ts` — template becomes markdown-with-frontmatter; `card.origin`; `create_card`; `ui.locale`.
 - `src/lib/workspace/validator.ts` — template parsing from `.md`, new diagnostics.
 - `src/lib/workspace/board-repository.ts` — preserve unknown card source fields in `yamlCard`; protect referenced templates.
@@ -55,24 +57,30 @@
 ### Task 1: Expression engine
 
 **Files:**
+
 - Create: `src/lib/template-expression.ts`
 - Test: `test/template-expression.test.ts`
 
 **Interfaces:**
+
 - Produces:
   ```ts
   export interface ExpressionContext {
     occurrence: Date;
-    dueDate: string | null;   // calendar date or null
+    dueDate: string | null; // calendar date or null
     timeZone: string;
     locale: string;
   }
-  export interface ExpressionIssue { expression: string; message: string }
+  export interface ExpressionIssue {
+    expression: string;
+    message: string;
+  }
   export const TEMPLATE_VARIABLES: readonly string[];
   export function renderTemplateText(text: string, context: ExpressionContext): string;
   export function validateTemplateText(text: string): ExpressionIssue[];
-  export function describeTemplateVariables(context: ExpressionContext):
-    Array<{ expression: string; description: string; preview: string }>;
+  export function describeTemplateVariables(
+    context: ExpressionContext,
+  ): Array<{ expression: string; description: string; preview: string }>;
   ```
 
 Grammar: `{{` optional space, variable name, optional `±N` followed by `d`/`w`/`m`, optional `:` format, optional space, `}}`. Unrecognised content is reported, never silently emitted.
@@ -152,7 +160,9 @@ test("accepts valid text with no issues", () => {
 test("describes every variable with a preview", () => {
   const described = describeTemplateVariables(context);
   assert.ok(described.some((entry) => entry.expression === "{{date}}"));
-  assert.ok(described.every((entry) => entry.preview.length > 0 || entry.expression.includes("due")));
+  assert.ok(
+    described.every((entry) => entry.preview.length > 0 || entry.expression.includes("due")),
+  );
 });
 ```
 
@@ -166,10 +176,12 @@ test("describes every variable with a preview", () => {
 ### Task 2: Occurrence engine
 
 **Files:**
+
 - Create: `src/lib/workspace/schedule.ts`
 - Test: `test/schedule.test.ts`
 
 **Interfaces:**
+
 - Produces:
   ```ts
   export interface ScheduleTrigger {
@@ -180,10 +192,16 @@ test("describes every variable with a preview", () => {
   }
   export function parseScheduleTrigger(value: unknown): ScheduleTrigger | null;
   export function occurrencesBetween(
-    trigger: ScheduleTrigger, after: Date, until: Date, timeZone: string, limit?: number
+    trigger: ScheduleTrigger,
+    after: Date,
+    until: Date,
+    timeZone: string,
+    limit?: number,
   ): Date[];
   export function nextOccurrenceAfter(
-    trigger: ScheduleTrigger, after: Date, timeZone: string
+    trigger: ScheduleTrigger,
+    after: Date,
+    timeZone: string,
   ): Date | null;
   ```
 
@@ -194,67 +212,117 @@ test("describes every variable with a preview", () => {
 ```ts
 test("cron occurrences respect the pattern", () => {
   const trigger = { type: "schedule", cron: "0 8 * * 2,4" } as const;
-  const found = occurrencesBetween(trigger, new Date("2026-08-24T00:00:00Z"),
-    new Date("2026-09-01T00:00:00Z"), "UTC");
-  assert.deepEqual(found.map((d) => d.toISOString()), [
-    "2026-08-25T08:00:00.000Z",
-    "2026-08-27T08:00:00.000Z",
-  ]);
+  const found = occurrencesBetween(
+    trigger,
+    new Date("2026-08-24T00:00:00Z"),
+    new Date("2026-09-01T00:00:00Z"),
+    "UTC",
+  );
+  assert.deepEqual(
+    found.map((d) => d.toISOString()),
+    ["2026-08-25T08:00:00.000Z", "2026-08-27T08:00:00.000Z"],
+  );
 });
 
 test("every-days keeps a constant interval across a month boundary", () => {
-  const trigger = { type: "schedule",
-    every: { days: 3, anchor: "2026-08-19", at: "08:00" } } as const;
-  const found = occurrencesBetween(trigger, new Date("2026-08-19T08:00:00Z"),
-    new Date("2026-09-05T00:00:00Z"), "UTC");
-  assert.deepEqual(found.map((d) => d.toISOString().slice(0, 10)), [
-    "2026-08-22", "2026-08-25", "2026-08-28", "2026-08-31", "2026-09-03",
-  ]);
+  const trigger = {
+    type: "schedule",
+    every: { days: 3, anchor: "2026-08-19", at: "08:00" },
+  } as const;
+  const found = occurrencesBetween(
+    trigger,
+    new Date("2026-08-19T08:00:00Z"),
+    new Date("2026-09-05T00:00:00Z"),
+    "UTC",
+  );
+  assert.deepEqual(
+    found.map((d) => d.toISOString().slice(0, 10)),
+    ["2026-08-22", "2026-08-25", "2026-08-28", "2026-08-31", "2026-09-03"],
+  );
 });
 
 test("every-weeks steps by seven days", () => {
-  const trigger = { type: "schedule",
-    every: { weeks: 2, anchor: "2026-08-19", at: "09:30" } } as const;
-  const found = occurrencesBetween(trigger, new Date("2026-08-19T00:00:00Z"),
-    new Date("2026-10-01T00:00:00Z"), "UTC");
-  assert.deepEqual(found.map((d) => d.toISOString().slice(0, 10)), [
-    "2026-08-19", "2026-09-02", "2026-09-16", "2026-09-30",
-  ]);
+  const trigger = {
+    type: "schedule",
+    every: { weeks: 2, anchor: "2026-08-19", at: "09:30" },
+  } as const;
+  const found = occurrencesBetween(
+    trigger,
+    new Date("2026-08-19T00:00:00Z"),
+    new Date("2026-10-01T00:00:00Z"),
+    "UTC",
+  );
+  assert.deepEqual(
+    found.map((d) => d.toISOString().slice(0, 10)),
+    ["2026-08-19", "2026-09-02", "2026-09-16", "2026-09-30"],
+  );
 });
 
 test("occurrences before the anchor are not produced", () => {
-  const trigger = { type: "schedule",
-    every: { days: 3, anchor: "2026-08-19" } } as const;
+  const trigger = { type: "schedule", every: { days: 3, anchor: "2026-08-19" } } as const;
   assert.deepEqual(
-    occurrencesBetween(trigger, new Date("2026-08-01T00:00:00Z"),
-      new Date("2026-08-19T00:00:00Z"), "UTC"), []);
+    occurrencesBetween(
+      trigger,
+      new Date("2026-08-01T00:00:00Z"),
+      new Date("2026-08-19T00:00:00Z"),
+      "UTC",
+    ),
+    [],
+  );
 });
 
 test("every-days holds local wall-clock time across a DST shift", () => {
-  const trigger = { type: "schedule",
-    every: { days: 1, anchor: "2026-10-24", at: "08:00" } } as const;
-  const found = occurrencesBetween(trigger, new Date("2026-10-24T00:00:00Z"),
-    new Date("2026-10-27T00:00:00Z"), "Europe/Amsterdam");
-  const local = found.map((d) => new Intl.DateTimeFormat("en-GB",
-    { timeZone: "Europe/Amsterdam", hour: "2-digit", minute: "2-digit" }).format(d));
+  const trigger = {
+    type: "schedule",
+    every: { days: 1, anchor: "2026-10-24", at: "08:00" },
+  } as const;
+  const found = occurrencesBetween(
+    trigger,
+    new Date("2026-10-24T00:00:00Z"),
+    new Date("2026-10-27T00:00:00Z"),
+    "Europe/Amsterdam",
+  );
+  const local = found.map((d) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Amsterdam",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d),
+  );
   assert.deepEqual(local, ["08:00", "08:00", "08:00"]);
 });
 
 test("the limit caps the returned occurrences", () => {
   const trigger = { type: "schedule", every: { days: 1, anchor: "2020-01-01" } } as const;
-  assert.equal(occurrencesBetween(trigger, new Date("2020-01-01T00:00:00Z"),
-    new Date("2026-01-01T00:00:00Z"), "UTC", 10).length, 10);
+  assert.equal(
+    occurrencesBetween(
+      trigger,
+      new Date("2020-01-01T00:00:00Z"),
+      new Date("2026-01-01T00:00:00Z"),
+      "UTC",
+      10,
+    ).length,
+    10,
+  );
 });
 
 test("parseScheduleTrigger rejects both cron and every", () => {
-  assert.equal(parseScheduleTrigger({ type: "schedule", cron: "0 8 * * *",
-    every: { days: 1, anchor: "2026-08-19" } }), null);
+  assert.equal(
+    parseScheduleTrigger({
+      type: "schedule",
+      cron: "0 8 * * *",
+      every: { days: 1, anchor: "2026-08-19" },
+    }),
+    null,
+  );
 });
 
 test("nextOccurrenceAfter finds the following instant", () => {
   const trigger = { type: "schedule", every: { days: 3, anchor: "2026-08-19", at: "08:00" } };
-  assert.equal(nextOccurrenceAfter(trigger, new Date("2026-08-23T00:00:00Z"), "UTC")
-    ?.toISOString(), "2026-08-25T08:00:00.000Z");
+  assert.equal(
+    nextOccurrenceAfter(trigger, new Date("2026-08-23T00:00:00Z"), "UTC")?.toISOString(),
+    "2026-08-25T08:00:00.000Z",
+  );
 });
 ```
 
@@ -268,10 +336,12 @@ test("nextOccurrenceAfter finds the following instant", () => {
 ### Task 3: Format and validation
 
 **Files:**
+
 - Modify: `src/lib/workspace/schema-catalog.ts`, `src/lib/workspace/validator.ts`
 - Test: `test/workspace.test.ts`, `test/schema-catalog.test.ts`
 
 Changes:
+
 1. `templateSchema` becomes `format: "markdown-with-yaml-frontmatter"` with a body; `COMPONENT_FIELDS.template` unchanged.
 2. `COMPONENT_FIELDS.card` gains `origin`; `cardSchema` gains an optional `origin` object.
 3. `ui.locale` added as an optional workspace field.
@@ -280,18 +350,18 @@ Changes:
 
 New diagnostics:
 
-| Code | Condition |
-| --- | --- |
-| `E_INVALID_FIELD_TYPE` | `card` not a mapping; `checklist` not a list of strings |
-| `E_REQUIRED_FIELD` | `card.title` missing or empty |
-| `E_INVALID_TEMPLATE_EXPRESSION` | any expression issue in title, body, or checklist |
-| `E_INVALID_TEMPLATE_DUE` | `due.mode` unknown, or fields inconsistent with the mode |
-| `E_UNKNOWN_REFERENCE` | `card.column_id` or a `card.tag_ids` entry missing |
-| `E_INVALID_RULE_ACTION` | `create_card` without `template_id`, or with a missing template |
-| `E_INVALID_RULE_ACTION` | `create_card` under a non-schedule trigger |
-| `E_INVALID_RULE_ACTION` | `create_card` in a rule that has `conditions` |
-| `E_INVALID_RULE_TRIGGER` | `schedule` with neither or both of `cron`/`every`; bad `days`/`weeks`/`anchor`/`at` |
-| `E_INVALID_FIELD_TYPE` | `card.origin` present but not a well-formed mapping |
+| Code                            | Condition                                                                           |
+| ------------------------------- | ----------------------------------------------------------------------------------- |
+| `E_INVALID_FIELD_TYPE`          | `card` not a mapping; `checklist` not a list of strings                             |
+| `E_REQUIRED_FIELD`              | `card.title` missing or empty                                                       |
+| `E_INVALID_TEMPLATE_EXPRESSION` | any expression issue in title, body, or checklist                                   |
+| `E_INVALID_TEMPLATE_DUE`        | `due.mode` unknown, or fields inconsistent with the mode                            |
+| `E_UNKNOWN_REFERENCE`           | `card.column_id` or a `card.tag_ids` entry missing                                  |
+| `E_INVALID_RULE_ACTION`         | `create_card` without `template_id`, or with a missing template                     |
+| `E_INVALID_RULE_ACTION`         | `create_card` under a non-schedule trigger                                          |
+| `E_INVALID_RULE_ACTION`         | `create_card` in a rule that has `conditions`                                       |
+| `E_INVALID_RULE_TRIGGER`        | `schedule` with neither or both of `cron`/`every`; bad `days`/`weeks`/`anchor`/`at` |
+| `E_INVALID_FIELD_TYPE`          | `card.origin` present but not a well-formed mapping                                 |
 
 - [ ] **Step 1: Write failing tests** covering each row above plus: a valid template workspace validates clean; an existing workspace with no templates still validates; a card carrying `origin` validates.
 - [ ] **Step 2: Run and confirm failure.**
@@ -304,6 +374,7 @@ New diagnostics:
 ### Task 4: Preserve unknown card source fields
 
 **Files:**
+
 - Modify: `src/lib/workspace/board-repository.ts` (`yamlCard`, around line 112)
 - Test: `test/workspace.test.ts`
 
@@ -333,12 +404,15 @@ test("board writes preserve unknown card frontmatter fields", async () => {
 ### Task 5: Templates repository
 
 **Files:**
+
 - Create: `src/lib/workspace/templates-repository.ts`
 - Modify: `src/lib/workspace/board-repository.ts` (template-reference protection)
 - Test: `test/templates-repository.test.ts`
 
 **Interfaces:**
+
 - Produces:
+
   ```ts
   export interface TemplateDue {
     mode: "none" | "offset" | "fixed";
@@ -357,10 +431,13 @@ test("board writes preserve unknown card frontmatter fields", async () => {
   }
   export const TEMPLATE_ID_PATTERN: RegExp;
   export function createTemplateId(): string;
-  export function readWorkspaceTemplates(root: string):
-    Promise<{ path: string; templates: CardTemplate[]; locale: string; timeZone: string }>;
+  export function readWorkspaceTemplates(
+    root: string,
+  ): Promise<{ path: string; templates: CardTemplate[]; locale: string; timeZone: string }>;
   export function writeWorkspaceTemplates(
-    root: string, request: { templates: CardTemplate[]; deletedIds: string[] }, now?: Date
+    root: string,
+    request: { templates: CardTemplate[]; deletedIds: string[] },
+    now?: Date,
   ): Promise<{ path: string }>;
   ```
 
@@ -375,10 +452,12 @@ test("board writes preserve unknown card frontmatter fields", async () => {
 ### Task 6: Template instantiation
 
 **Files:**
+
 - Create: `src/lib/workspace/template-instantiation.ts`
 - Test: `test/template-instantiation.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CardTemplate` (Task 5), `renderTemplateText` (Task 1).
 - Produces:
   ```ts
@@ -417,26 +496,36 @@ Due resolution runs first, because `{{due_date}}` must be renderable in the titl
 ### Task 7: Watermark and pending occurrences
 
 **Files:**
+
 - Create: `src/lib/workspace/schedule-state.ts`
 - Test: `test/schedule-state.test.ts`
 
 **Interfaces:**
+
 - Consumes: `occurrencesBetween` (Task 2).
 - Produces:
   ```ts
   export const PENDING_SERIES_THRESHOLD = 20;
   export interface PendingOccurrence {
-    ruleId: string; ruleName: string; templateId: string;
-    occurrence: string; title: string;
+    ruleId: string;
+    ruleName: string;
+    templateId: string;
+    occurrence: string;
+    title: string;
   }
   export interface PendingSeries {
-    ruleId: string; ruleName: string; templateId: string;
-    occurrences: string[]; collapsed: boolean;
+    ruleId: string;
+    ruleName: string;
+    templateId: string;
+    occurrences: string[];
+    collapsed: boolean;
   }
   export function readWatermark(root: string, ruleId: string): Promise<string | null>;
   export function writeWatermark(root: string, ruleId: string, occurrence: string): Promise<void>;
   export function resolveWatermark(
-    root: string, ruleId: string, ruleCreatedAt: string
+    root: string,
+    ruleId: string,
+    ruleCreatedAt: string,
   ): Promise<string>;
   export function pendingOccurrences(root: string, now?: Date): Promise<PendingSeries[]>;
   ```
@@ -454,16 +543,20 @@ Due resolution runs first, because `{{due_date}}` must be renderable in the titl
 ### Task 8: Rule runner board-level phase
 
 **Files:**
+
 - Modify: `src/lib/workspace/rule-runner.ts`
 - Test: `test/rule-runner.test.ts`
 
 **Interfaces:**
+
 - Produces:
   ```ts
   export function runScheduledRule(root: string, ruleId: string, now?: Date): Promise<number>;
   export function createCardForOccurrence(
-    root: string, ruleId: string, occurrence: Date
-  ): Promise<string | null>;   // created card id, or null when already present
+    root: string,
+    ruleId: string,
+    occurrence: Date,
+  ): Promise<string | null>; // created card id, or null when already present
   ```
 
 `runScheduledRule` splits into a board-level phase (`create_card`, `sort_cards`) run once, then the existing per-card loop. Created cards emit `card.created` into `derivedEvents` so event rules cascade. `startWorkspaceJobs` arms `croner` for `cron` triggers and a self-re-arming timer for `every`, and the returned stop function clears both.
@@ -479,10 +572,12 @@ Due resolution runs first, because `{{due_date}}` must be renderable in the titl
 ### Task 9: Server functions
 
 **Files:**
+
 - Create: `src/lib/templates.functions.ts`, `src/lib/schedule.functions.ts`
 - Test: covered through Tasks 5, 7, 8 plus a smoke test in `test/schedule-state.test.ts`
 
 **Interfaces:**
+
 - Produces:
   ```ts
   // templates.functions.ts
@@ -511,10 +606,12 @@ Follow the existing `rules.functions.ts` shape exactly, including how the worksp
 ### Task 10: Schedule rules in the editor model
 
 **Files:**
+
 - Modify: `src/lib/rule-model.ts`, `src/lib/rules-ui.ts`, `src/lib/workspace/rules-repository.ts`
 - Test: `test/rule-model.test.ts`, `test/rules-repository.test.ts`
 
 **Interfaces:**
+
 - Produces:
   ```ts
   type RuleTrigger =
@@ -539,6 +636,7 @@ Follow the existing `rules.functions.ts` shape exactly, including how the worksp
 ### Task 11: Template editor interface
 
 **Files:**
+
 - Create: `src/lib/templates.ts`, `src/components/board/TemplatesButton.tsx`, `TemplateEditorModal.tsx`, `TemplateDuePicker.tsx`, `TemplateVariablesPanel.tsx`
 - Modify: `src/components/board/Board.tsx`
 - Test: `test/templates-editor.test.tsx`
@@ -556,6 +654,7 @@ The list modal mirrors `RulesButton`. The editor reuses `EditableMarkdown`, `Tag
 ### Task 12: Missed-occurrence prompt
 
 **Files:**
+
 - Create: `src/lib/missed-occurrences.ts`, `src/components/board/MissedOccurrencesDialog.tsx`
 - Modify: `src/components/board/Board.tsx`
 - Test: `test/missed-occurrences.test.tsx`
@@ -573,6 +672,7 @@ One question at a time. Four actions: Repeat (focused by default, so Enter accep
 ### Task 13: Documentation and full verification
 
 **Files:**
+
 - Modify: `docs/rules.md`, `docs/workspace-format.md`, `AGENTS.md`, `src/lib/workspace/initializer.ts`
 - Create: `example/templates/template_piano.md`, `example/rules/rule_piano.yaml`
 
