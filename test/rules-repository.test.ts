@@ -60,6 +60,24 @@ updated_at: ${timestamp}
   await writeFile(workspacePath, stringify(workspace));
 }
 
+async function writeTemplate(root: string) {
+  await writeFile(
+    join(root, "templates/template_piano.md"),
+    `---
+schema_version: 1
+id: template_piano
+name: Piano practice
+card:
+  title: Piano
+created_at: 2026-07-20T12:00:00Z
+updated_at: 2026-07-20T12:00:00Z
+---
+
+Practice.
+`,
+  );
+}
+
 test("new rule IDs satisfy the canonical resource format", () => {
   assert.match(createRuleId(), /^rule_[a-z0-9]{12}$/);
 });
@@ -257,16 +275,16 @@ test("unchanged rules keep timestamps and hidden manual rules are preserved", as
     await writeWorkspaceRules(root, { rules: [visible], deletedIds: [] }, firstWrite);
     const firstSource = await readFile(join(root, "rules/rule_test.yaml"), "utf8");
 
+    // Valid on disk, but the editor's due-date trigger always pairs with a
+    // due_state condition, so this rule stays manual.
     await writeFile(
-      join(root, "rules/rule_manual_schedule.yaml"),
+      join(root, "rules/rule_manual_age.yaml"),
       `schema_version: 1
-id: rule_manual_schedule
-name: Manual schedule
+id: rule_manual_age
+name: Manual age rule
 enabled: true
 trigger:
-  type: schedule
-  cron: "0 8 * * *"
-  timezone: Europe/Amsterdam
+  type: due_date_reached
 actions:
   - type: clear_due_date
 created_at: 2026-07-21T09:00:00Z
@@ -278,8 +296,8 @@ updated_at: 2026-07-21T09:00:00Z
 
     assert.equal(await readFile(join(root, "rules/rule_test.yaml"), "utf8"), firstSource);
     assert.match(
-      await readFile(join(root, "rules/rule_manual_schedule.yaml"), "utf8"),
-      /Manual schedule/,
+      await readFile(join(root, "rules/rule_manual_age.yaml"), "utf8"),
+      /Manual age rule/,
     );
     assert.deepEqual(
       (await readWorkspaceRules(root)).rules.map((candidate) => candidate.id),
@@ -353,6 +371,150 @@ test("invalid UI rules fail before writing authoritative files", async () => {
     );
     await assert.rejects(() => readFile(join(root, "rules/rule_self_loop.yaml"), "utf8"));
     assert.deepEqual((await validateWorkspace(root, { strict: true })).errors, []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a cron schedule rule that creates cards round-trips through the editor model", async () => {
+  const root = await makeWorkspace();
+  try {
+    await writeTemplate(root);
+    await writeFile(
+      join(root, "rules/rule_piano.yaml"),
+      `schema_version: 1
+id: rule_piano
+name: Piano practice
+enabled: true
+trigger:
+  type: schedule
+  cron: "0 8 * * 2,4"
+  timezone: Europe/Amsterdam
+actions:
+  - type: create_card
+    template_id: template_piano
+created_at: 2026-07-20T12:00:00Z
+updated_at: 2026-07-20T12:00:00Z
+`,
+    );
+    const { rules } = await readWorkspaceRules(root);
+    const piano = rules.find((candidate) => candidate.id === "rule_piano");
+    assert.deepEqual(piano?.trigger, { kind: "schedule", cron: "0 8 * * 2,4" });
+    assert.deepEqual(piano?.actions, [
+      { kind: "createCard", templateId: "template_piano", columnId: null },
+    ]);
+
+    await writeWorkspaceRules(root, { rules, deletedIds: [] }, secondWrite);
+    const source = await readFile(join(root, "rules/rule_piano.yaml"), "utf8");
+    assert.match(source, /timezone: Europe\/Amsterdam/, "the authored timezone must survive");
+    assert.match(source, /template_id: template_piano/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("an every-interval schedule round-trips without losing its unit", async () => {
+  const root = await makeWorkspace();
+  try {
+    await writeTemplate(root);
+    for (const [unit, count] of [
+      ["days", 3],
+      ["weeks", 2],
+    ] as const) {
+      await writeFile(
+        join(root, "rules/rule_piano.yaml"),
+        `schema_version: 1
+id: rule_piano
+name: Piano practice
+enabled: true
+trigger:
+  type: schedule
+  every:
+    ${unit}: ${count}
+    anchor: 2026-08-19
+    at: "08:00"
+actions:
+  - type: create_card
+    template_id: template_piano
+created_at: 2026-07-20T12:00:00Z
+updated_at: 2026-07-20T12:00:00Z
+`,
+      );
+      const { rules } = await readWorkspaceRules(root);
+      const piano = rules.find((candidate) => candidate.id === "rule_piano");
+      assert.deepEqual(piano?.trigger, {
+        kind: "scheduleEvery",
+        unit,
+        count,
+        anchor: "2026-08-19",
+        at: "08:00",
+      });
+      await writeWorkspaceRules(root, { rules, deletedIds: [] }, secondWrite);
+      assert.match(
+        await readFile(join(root, "rules/rule_piano.yaml"), "utf8"),
+        new RegExp(`${unit}: ${count}`),
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the editor refuses card creation outside a schedule or alongside conditions", async () => {
+  const root = await makeWorkspace();
+  try {
+    await writeTemplate(root);
+    const createCard = {
+      kind: "createCard" as const,
+      templateId: "template_piano",
+      columnId: null,
+    };
+    await assert.rejects(
+      writeWorkspaceRules(root, {
+        rules: [
+          {
+            id: "rule_bad",
+            name: "Bad",
+            enabled: true,
+            trigger: { kind: "card.created", columnId: "*" },
+            actions: [createCard],
+          },
+        ],
+        deletedIds: [],
+      }),
+      /only create cards on a schedule/,
+    );
+    await assert.rejects(
+      writeWorkspaceRules(root, {
+        rules: [
+          {
+            id: "rule_bad",
+            name: "Bad",
+            enabled: true,
+            trigger: { kind: "schedule", cron: "0 8 * * *" },
+            conditions: [{ kind: "completed", value: false }],
+            actions: [createCard],
+          },
+        ],
+        deletedIds: [],
+      }),
+      /cannot create a card and carry conditions/,
+    );
+    await assert.rejects(
+      writeWorkspaceRules(root, {
+        rules: [
+          {
+            id: "rule_bad",
+            name: "Bad",
+            enabled: true,
+            trigger: { kind: "schedule", cron: "0 8 * * *" },
+            actions: [{ ...createCard, templateId: "template_ghost" }],
+          },
+        ],
+        deletedIds: [],
+      }),
+      /missing template template_ghost/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

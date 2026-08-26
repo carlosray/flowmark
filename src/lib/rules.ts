@@ -489,6 +489,10 @@ export function useRuleEffects(): Readonly<Record<string, RuleEffect>> {
 
 export function describeTrigger(t: RuleTrigger, colName: (id: string) => string): string {
   switch (t.kind) {
+    case "schedule":
+      return `On the schedule ${t.cron}`;
+    case "scheduleEvery":
+      return `Every ${t.count === 1 ? t.unit.slice(0, -1) : `${t.count} ${t.unit}`} from ${t.anchor} at ${t.at}`;
     case "card.created":
       return `When a card is created in ${t.columnId === "*" ? "any column" : colName(t.columnId)}`;
     case "card.moved":
@@ -531,6 +535,10 @@ export function describeAction(
       return "Sort every column by due date";
     case "archiveCard":
       return "Archive card";
+    case "createCard":
+      return a.columnId === null
+        ? `Create a card from a template`
+        : `Create a card from a template in ${colName(a.columnId)}`;
   }
 }
 

@@ -37,7 +37,11 @@ export type DueState = (typeof DUE_STATES)[number];
 export type DueWhen = Exclude<DueState, "none" | "future">;
 export type ColumnConditionOperator = (typeof COLUMN_CONDITION_OPERATORS)[number];
 
+export type ScheduleUnit = "days" | "weeks";
+
 export type RuleTrigger =
+  | { kind: "schedule"; cron: string }
+  | { kind: "scheduleEvery"; unit: ScheduleUnit; count: number; anchor: string; at: string }
   | { kind: "card.created"; columnId: string | "*" }
   | { kind: "card.moved"; toColumnId: string }
   | { kind: "card.completed"; value: boolean }
@@ -60,7 +64,8 @@ export type RuleAction =
   | { kind: "moveToColumn"; columnId: string }
   | { kind: "setCompleted"; value: boolean }
   | { kind: "sortByDueDate" }
-  | { kind: "archiveCard" };
+  | { kind: "archiveCard" }
+  | { kind: "createCard"; templateId: string; columnId: string | null };
 
 export interface Rule {
   id: string;
@@ -72,6 +77,11 @@ export interface Rule {
 }
 
 export const RULE_ID_PATTERN = /^rule_[a-z0-9]+(?:_[a-z0-9]+)*$/;
+
+/** Triggers that fire on a clock rather than on something happening to a card. */
+export function isScheduleTrigger(trigger: RuleTrigger) {
+  return trigger.kind === "schedule" || trigger.kind === "scheduleEvery";
+}
 
 export function createRuleId() {
   const suffix = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);

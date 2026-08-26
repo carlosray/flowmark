@@ -527,6 +527,9 @@ function ActionsEditor({ rule, board }: { rule: Rule; board: ReturnType<typeof u
       case "archiveCard":
         a = { kind: "archiveCard" };
         break;
+      case "createCard":
+        a = { kind: "createCard", templateId: "", columnId: null };
+        break;
     }
     setActions([...rule.actions, a]);
   };
@@ -577,6 +580,9 @@ function ActionsEditor({ rule, board }: { rule: Rule; board: ReturnType<typeof u
                     break;
                   case "archiveCard":
                     next = { kind: "archiveCard" };
+                    break;
+                  case "createCard":
+                    next = { kind: "createCard", templateId: "", columnId: null };
                     break;
                 }
                 updateAction(i, next);

@@ -58,6 +58,11 @@ function matchesTrigger(
   timeZone: string,
 ) {
   switch (trigger.kind) {
+    // Scheduled rules belong to the server; the browser must not fabricate
+    // their effects, least of all a card that may never be written.
+    case "schedule":
+    case "scheduleEvery":
+      return false;
     case "card.created":
       return (
         event.kind === "card.created" &&

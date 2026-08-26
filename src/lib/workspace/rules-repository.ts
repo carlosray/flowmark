@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { stringify } from "yaml";
 
 import {
+  isScheduleTrigger,
   RULE_ID_PATTERN,
   type DueState,
   type DueWhen,
@@ -74,6 +75,24 @@ function uiTrigger(source: SourceValue): { trigger: RuleTrigger; consumed: Set<n
     }
     case "due_state_changed":
       return { trigger: { kind: "card.dueStateChanged" }, consumed: new Set() };
+    case "schedule": {
+      if (typeof trigger.cron === "string")
+        return { trigger: { kind: "schedule", cron: trigger.cron }, consumed: new Set() };
+      const every = asRecord(trigger.every);
+      const unit = typeof every.days === "number" ? "days" : "weeks";
+      const count = typeof every.days === "number" ? every.days : every.weeks;
+      if (typeof count !== "number" || typeof every.anchor !== "string") return null;
+      return {
+        trigger: {
+          kind: "scheduleEvery",
+          unit,
+          count,
+          anchor: every.anchor,
+          at: typeof every.at === "string" ? every.at : "00:00",
+        },
+        consumed: new Set(),
+      };
+    }
     default:
       return null;
   }
@@ -147,6 +166,14 @@ function uiAction(source: SourceValue): RuleAction | null {
         : null;
     case "archive_card":
       return { kind: "archiveCard" };
+    case "create_card":
+      return typeof source.template_id === "string"
+        ? {
+            kind: "createCard",
+            templateId: source.template_id,
+            columnId: typeof source.column_id === "string" ? source.column_id : null,
+          }
+        : null;
     default:
       return null;
   }
@@ -180,7 +207,9 @@ function uiRule(source: SourceValue): Rule | null {
   };
 }
 
-function sourceTrigger(trigger: RuleTrigger): SourceValue {
+function sourceTrigger(trigger: RuleTrigger, existing: SourceValue = {}): SourceValue {
+  // The editor does not offer a timezone, so keep whatever the file authored.
+  const timezone = typeof existing.timezone === "string" ? { timezone: existing.timezone } : {};
   switch (trigger.kind) {
     case "card.created":
       return { type: "card_created" };
@@ -192,6 +221,18 @@ function sourceTrigger(trigger: RuleTrigger): SourceValue {
       return { type: "due_date_reached" };
     case "card.dueStateChanged":
       return { type: "due_state_changed" };
+    case "schedule":
+      return { type: "schedule", cron: trigger.cron, ...timezone };
+    case "scheduleEvery":
+      return {
+        type: "schedule",
+        every: {
+          [trigger.unit]: trigger.count,
+          anchor: trigger.anchor,
+          at: trigger.at,
+        },
+        ...timezone,
+      };
   }
 }
 
@@ -259,10 +300,21 @@ function sourceAction(action: RuleAction): SourceValue {
       };
     case "archiveCard":
       return { type: "archive_card" };
+    case "createCard":
+      return {
+        type: "create_card",
+        template_id: action.templateId,
+        ...(action.columnId === null ? {} : { column_id: action.columnId }),
+      };
   }
 }
 
-function validateUiRule(rule: Rule, columns: Set<string>, tags: Set<string>) {
+function validateUiRule(
+  rule: Rule,
+  columns: Set<string>,
+  tags: Set<string>,
+  templates: Set<string>,
+) {
   if (!RULE_ID_PATTERN.test(rule.id)) throw new Error(`Invalid rule ID: ${rule.id}`);
   if (!rule.name.trim()) throw new Error(`Rule ${rule.id} must have a name.`);
   if (rule.actions.length === 0)
@@ -282,6 +334,18 @@ function validateUiRule(rule: Rule, columns: Set<string>, tags: Set<string>) {
       throw new Error(`Rule ${rule.id} references missing tag ${condition.tagId}.`);
   }
   for (const action of rule.actions) {
+    if (action.kind === "createCard") {
+      if (!isScheduleTrigger(rule.trigger))
+        throw new Error(`Rule ${rule.id} can only create cards on a schedule.`);
+      if ((rule.conditions ?? []).length > 0)
+        throw new Error(
+          `Rule ${rule.id} cannot create a card and carry conditions: there is no card yet to test.`,
+        );
+      if (!templates.has(action.templateId))
+        throw new Error(`Rule ${rule.id} references missing template ${action.templateId}.`);
+      if (action.columnId !== null && !columns.has(action.columnId))
+        throw new Error(`Rule ${rule.id} references missing column ${action.columnId}.`);
+    }
     if (
       rule.trigger.kind === "card.moved" &&
       action.kind === "moveToColumn" &&
@@ -329,8 +393,9 @@ export async function writeWorkspaceRules(
   const ids = new Set<string>();
   const columns = new Set(before.workspace.columns.keys());
   const tags = new Set(before.workspace.tags.keys());
+  const templates = new Set(before.workspace.templates.keys());
   for (const rule of request.rules) {
-    validateUiRule(rule, columns, tags);
+    validateUiRule(rule, columns, tags, templates);
     if (ids.has(rule.id)) throw new Error(`Duplicate rule ID: ${rule.id}`);
     ids.add(rule.id);
   }
@@ -364,7 +429,7 @@ export async function writeWorkspaceRules(
           id: rule.id,
           name: rule.name,
           enabled: rule.enabled,
-          trigger: sourceTrigger(rule.trigger),
+          trigger: sourceTrigger(rule.trigger, asRecord(existing?.trigger)),
           conditions,
           actions: rule.actions.map(sourceAction),
           created_at: existing?.created_at ?? now.toISOString(),
