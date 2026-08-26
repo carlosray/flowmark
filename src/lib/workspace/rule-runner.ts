@@ -5,6 +5,9 @@ import { calendarDateAtOffset } from "../calendar-date";
 import { applyRuleTransaction, dueState, type RuleEvent } from "../rule-engine";
 import { readWorkspaceBoard, writeWorkspaceBoard } from "./board-repository";
 import { readWorkspaceRules } from "./rules-repository";
+import { nextOccurrenceAfter, parseScheduleTrigger } from "./schedule";
+import { writeWatermark } from "./schedule-state";
+import { createCardForOccurrence } from "./scheduled-cards";
 import { validateWorkspace } from "./validator";
 
 type SourceValue = Record<string, unknown>;
@@ -159,8 +162,17 @@ export async function runScheduledRule(root: string, ruleId: string, now = new D
       : typeof workspace.timezone === "string"
         ? workspace.timezone
         : "UTC";
-  let board = await readWorkspaceBoard(root);
+  // Board-level actions run once per firing, before the per-card pass: at this
+  // point the card they create does not exist yet, so there is nothing to
+  // iterate over.
   let affected = 0;
+  if (actions.some((action) => action.type === "create_card")) {
+    const created = await createCardForOccurrence(root, ruleId, now, now);
+    await writeWatermark(root, ruleId, now.toISOString());
+    if (created) affected += 1;
+  }
+
+  let board = await readWorkspaceBoard(root);
   let sortRequested = false;
   const derivedEvents: RuleEvent[] = [];
   for (const card of Object.values(board.cards)) {
@@ -168,6 +180,7 @@ export async function runScheduledRule(root: string, ruleId: string, now = new D
       continue;
     let changed = false;
     for (const action of actions) {
+      if (action.type === "create_card") continue;
       if (action.type === "sort_cards") sortRequested = true;
       else {
         const beforeColumn = cardColumnId(board, card.id);
@@ -246,9 +259,20 @@ export function nextWorkspaceMidnight(now: Date, timeZone: string): Date {
   return next;
 }
 
+/** Injectable so tests can drive `every` timers without waiting on the clock. */
+export interface JobScheduler {
+  setTimeout: (callback: () => void, delayMs: number) => unknown;
+  clearTimeout: (handle: unknown) => void;
+}
+
+const defaultJobScheduler: JobScheduler = {
+  setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
+
 export async function startWorkspaceJobs(
   root: string,
-  options: { now?: () => Date } = {},
+  options: { now?: () => Date; scheduler?: JobScheduler } = {},
 ): Promise<() => void> {
   const validation = await validateWorkspace(root);
   if (validation.errors.length > 0 || !validation.workspace)
@@ -275,25 +299,52 @@ export async function startWorkspaceJobs(
       },
     ),
   );
+  const scheduler = options.scheduler ?? defaultJobScheduler;
+  const clock = options.now ?? (() => new Date());
+  const timers = new Set<unknown>();
+  let stopped = false;
   for (const rule of validation.workspace.rules.values()) {
-    if (rule.enabled !== true || !isRecord(rule.trigger) || rule.trigger.type !== "schedule")
+    if (rule.enabled !== true) continue;
+    const trigger = parseScheduleTrigger(rule.trigger);
+    if (!trigger) continue;
+    const ruleId = String(rule.id);
+    if (trigger.cron !== undefined) {
+      jobs.push(
+        new Cron(
+          trigger.cron,
+          {
+            timezone: trigger.timezone,
+            protect: true,
+            catch: (error) => console.error(`Scheduled rule ${ruleId} failed:`, error),
+          },
+          async () => {
+            await runScheduledRule(root, ruleId);
+          },
+        ),
+      );
       continue;
-    if (typeof rule.trigger.cron !== "string") continue;
-    jobs.push(
-      new Cron(
-        rule.trigger.cron,
-        {
-          timezone: typeof rule.trigger.timezone === "string" ? rule.trigger.timezone : undefined,
-          protect: true,
-          catch: (error) => console.error(`Scheduled rule ${rule.id} failed:`, error),
-        },
-        async () => {
-          await runScheduledRule(root, rule.id);
-        },
-      ),
-    );
+    }
+    // `every` is anchored arithmetic that croner cannot express, so it re-arms a
+    // timer for each occurrence instead.
+    const arm = () => {
+      if (stopped) return;
+      const next = nextOccurrenceAfter(trigger, clock(), workspaceTimeZone);
+      if (!next) return;
+      const delay = Math.max(0, next.getTime() - clock().getTime());
+      const timer = scheduler.setTimeout(() => {
+        timers.delete(timer);
+        void runScheduledRule(root, ruleId, next)
+          .catch((error) => console.error(`Scheduled rule ${ruleId} failed:`, error))
+          .finally(arm);
+      }, delay);
+      timers.add(timer);
+    };
+    arm();
   }
   return () => {
+    stopped = true;
     for (const job of jobs) job.stop();
+    for (const timer of timers) scheduler.clearTimeout(timer);
+    timers.clear();
   };
 }

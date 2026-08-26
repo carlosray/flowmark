@@ -66,7 +66,8 @@ function dueToSource(due: TemplateDue): SourceValue {
   return { mode: "none" };
 }
 
-function templateFromSource(source: SourceValue): CardTemplate {
+/** Projects a validated template resource into the editor/runtime shape. */
+export function toCardTemplate(source: SourceValue): CardTemplate {
   const card = asRecord(source.card);
   return {
     id: String(source.id),
@@ -140,7 +141,7 @@ export async function readWorkspaceTemplates(root: string): Promise<{
   return {
     path: join(root, String(paths.templates)),
     templates: [...result.workspace.templates.values()]
-      .map((source) => templateFromSource(source))
+      .map((source) => toCardTemplate(source))
       .sort(
         (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
       ),
@@ -183,7 +184,7 @@ export async function writeWorkspaceTemplates(
   try {
     for (const template of request.templates) {
       const existing = before.workspace.templates.get(template.id);
-      if (existing && JSON.stringify(templateFromSource(existing)) === JSON.stringify(template))
+      if (existing && JSON.stringify(toCardTemplate(existing)) === JSON.stringify(template))
         continue;
       const frontmatter = stringify({
         ...sourceFields(existing),
