@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Trash2, Zap, X, Power } from "lucide-react";
 import { useBoard } from "@/lib/store";
+import { dateToCalendarDate } from "@/lib/calendar-date";
+import { isScheduleTrigger } from "@/lib/rule-model";
+import { templatesStore, useTemplates } from "@/lib/templates";
 import {
   rulesStore,
   useRules,
@@ -32,6 +35,8 @@ export function RulesButton() {
 
   useEffect(() => {
     rulesStore.hydrate();
+    // The action editor needs the template list to offer card creation.
+    templatesStore.hydrate();
   }, []);
 
   return (
@@ -265,7 +270,16 @@ function TriggerEditor({ rule, board }: { rule: Rule; board: ReturnType<typeof u
         <SelectPill
           value={t.kind}
           onChange={(v) => {
-            if (v === "card.created") setTrigger({ kind: "card.created", columnId: "*" });
+            if (v === "schedule") setTrigger({ kind: "schedule", cron: "0 8 * * *" });
+            else if (v === "scheduleEvery")
+              setTrigger({
+                kind: "scheduleEvery",
+                unit: "days",
+                count: 3,
+                anchor: dateToCalendarDate(new Date()),
+                at: "08:00",
+              });
+            else if (v === "card.created") setTrigger({ kind: "card.created", columnId: "*" });
             else if (v === "card.moved")
               setTrigger({
                 kind: "card.moved",
@@ -277,6 +291,51 @@ function TriggerEditor({ rule, board }: { rule: Rule; board: ReturnType<typeof u
           }}
           options={ruleTriggerOptions()}
         />
+        {t.kind === "schedule" && (
+          <input
+            aria-label="Cron expression"
+            value={t.cron}
+            onChange={(e) => setTrigger({ kind: "schedule", cron: e.target.value })}
+            className="text-xs font-mono bg-surface border border-border rounded-md px-2 py-1 outline-none focus:border-primary/60 w-32"
+          />
+        )}
+        {t.kind === "scheduleEvery" && (
+          <>
+            <input
+              aria-label="Interval count"
+              type="number"
+              min={1}
+              value={t.count}
+              onChange={(e) => setTrigger({ ...t, count: Math.max(1, Number(e.target.value)) })}
+              className="text-xs bg-surface border border-border rounded-md px-2 py-1 outline-none focus:border-primary/60 w-16"
+            />
+            <SelectPill
+              ariaLabel="Interval unit"
+              value={t.unit}
+              onChange={(v) => setTrigger({ ...t, unit: v as "days" | "weeks" })}
+              options={[
+                ["days", "days"],
+                ["weeks", "weeks"],
+              ]}
+            />
+            <span className="text-xs text-subtle-foreground">from</span>
+            <input
+              aria-label="Interval anchor date"
+              type="date"
+              value={t.anchor}
+              onChange={(e) => setTrigger({ ...t, anchor: e.target.value })}
+              className="text-xs bg-surface border border-border rounded-md px-2 py-1 outline-none focus:border-primary/60"
+            />
+            <span className="text-xs text-subtle-foreground">at</span>
+            <input
+              aria-label="Interval time of day"
+              type="time"
+              value={t.at}
+              onChange={(e) => setTrigger({ ...t, at: e.target.value })}
+              className="text-xs bg-surface border border-border rounded-md px-2 py-1 outline-none focus:border-primary/60"
+            />
+          </>
+        )}
         {t.kind === "card.created" && (
           <>
             <span className="text-[11px] text-subtle-foreground">in</span>
@@ -498,6 +557,7 @@ function ConditionsEditor({ rule, board }: { rule: Rule; board: ReturnType<typeo
 }
 
 function ActionsEditor({ rule, board }: { rule: Rule; board: ReturnType<typeof useBoard> }) {
+  const templates = useTemplates();
   const setActions = (actions: RuleAction[]) => rulesStore.update(rule.id, { actions });
 
   const addAction = (kind: RuleAction["kind"]) => {
@@ -587,8 +647,35 @@ function ActionsEditor({ rule, board }: { rule: Rule; board: ReturnType<typeof u
                 }
                 updateAction(i, next);
               }}
-              options={ruleActionOptions(board.tags.length > 0)}
+              options={ruleActionOptions(board.tags.length > 0, {
+                hasTemplates: templates.length > 0,
+                onSchedule: isScheduleTrigger(rule.trigger),
+              })}
             />
+            {a.kind === "createCard" && (
+              <>
+                <SelectPill
+                  ariaLabel="Card template"
+                  value={a.templateId}
+                  onChange={(v) => updateAction(i, { ...a, templateId: v })}
+                  options={[
+                    ["", "Pick a template"],
+                    ...templates.map(
+                      (template) => [template.id, template.name] as [string, string],
+                    ),
+                  ]}
+                />
+                <SelectPill
+                  ariaLabel="Created card column"
+                  value={a.columnId ?? ""}
+                  onChange={(v) => updateAction(i, { ...a, columnId: v || null })}
+                  options={[
+                    ["", "template's column"],
+                    ...board.columns.map((column) => [column.id, column.name] as [string, string]),
+                  ]}
+                />
+              </>
+            )}
             {a.kind === "setDueDate" && (
               <SelectPill
                 value={String(a.offsetDays)}

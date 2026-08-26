@@ -29,7 +29,9 @@ import { rulesStore } from "@/lib/rules";
 import { ColumnView } from "./ColumnView";
 import { CardModal } from "./CardModal";
 import { ManageTagsButton } from "./TagPicker";
+import { MissedOccurrencesDialog } from "./MissedOccurrencesDialog";
 import { RulesButton } from "./RulesButton";
+import { TemplatesButton } from "./TemplatesButton";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import flowmarkIcon from "@/assets/flowmark-icon.png";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -335,11 +337,14 @@ export function Board({
               onChange={(v) => setCompletedFilter(v as CompletedFilter)}
             />
             <RulesButton />
+            <TemplatesButton />
             <ManageTagsButton selectedTagIds={tagFilter} onSelectedTagIdsChange={setTagFilter} />
             <ThemeSwitcher initialTheme={initialTheme} />
             <ReloadWorkspaceButton cards={board.cards} />
           </div>
         </header>
+
+        <MissedOccurrencesDialog />
 
         {sync.status === "error" && (
           <div

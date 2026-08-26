@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { stringify } from "yaml";
 
 import { validateTemplateText } from "../template-expression";
+import { TEMPLATE_ID_PATTERN } from "../templates-ui";
 import { FileMutation, rollbackAndRethrow } from "./file-transaction";
 import { validateWorkspace } from "./validator";
 
@@ -29,12 +30,7 @@ export interface TemplatesWriteRequest {
   deletedIds: string[];
 }
 
-export const TEMPLATE_ID_PATTERN = /^template_[a-z0-9]+(?:_[a-z0-9]+)*$/;
-
-export function createTemplateId() {
-  const suffix = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-  return `template_${suffix}`;
-}
+export { TEMPLATE_ID_PATTERN, createTemplateId } from "../templates-ui";
 
 function asRecord(value: unknown): SourceValue {
   return value !== null && typeof value === "object" && !Array.isArray(value)
