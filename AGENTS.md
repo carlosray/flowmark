@@ -7,6 +7,8 @@
 - Markdown and YAML are the source of truth. Never introduce SQLite, browser storage, a hidden cache, or a cloud service as canonical storage.
 - `.flowmark/` contains only rebuildable caches, indexes, scheduler state, locks, and runtime preferences. It is ignored by Git and must be safe to delete.
 - Resource IDs are immutable, lowercase, URL-safe IDs with a type prefix. Filenames match IDs, and all references use IDs—not display names or paths.
+- Templates are Markdown with YAML frontmatter under `templates/`. They describe a card that does not exist yet; a scheduled `create_card` rule instantiates one. Text fields accept `{{...}}` expressions.
+- Cards created by a scheduled rule carry an `origin` marker naming the rule, template, and occurrence. It is the only thing preventing duplicate creation, so preserve it through every write.
 - Columns are structural only: identity, name, order, color, and timestamps. Completion, due-date, transition, and archival policy belongs exclusively in `rules/`.
 - Completed cards set `completed_at`; open cards use `completed_at: null`. Age-based automation must use this timestamp rather than infer completion from `updated_at`.
 - Preserve the filesystem-first architecture. Support only the current workspace format; reject unsupported formats instead of silently rewriting or discarding user data.
@@ -19,7 +21,9 @@
 - Filesystem access belongs in server functions and `src/lib/workspace/`. The client board store may keep UI-only collapsed-column state in `localStorage`, but must never cache canonical cards or rules there.
 - `src/lib/workspace/validator.ts` owns full-workspace validation and stable diagnostics. `flowmark validate` is read-only; `serve` validates first; `init` creates missing workspace scaffolding; `repair` changes only `.flowmark/`.
 - `flowmark schema <component>` publishes the current machine-readable contract for one source type; `flowmark schema --all` publishes every contract. Keep the catalog and validator behavior in sync, and direct workspace-editing agents to query it rather than freeze field lists in generated guidance.
-- `src/lib/workspace/rule-runner.ts` executes scheduled canonical rules locally. Jobs start only after full validation and stop with the local server.
+- `src/lib/workspace/rule-runner.ts` executes scheduled canonical rules locally. Jobs start only after full validation and stop with the local server. Cron triggers run through `croner`; anchored `every` intervals run on a re-arming timer.
+- `src/lib/workspace/schedule.ts` turns a schedule trigger into occurrence instants, and `schedule-state.ts` tracks how far each rule has been processed in `.flowmark/jobs/`. That mark is disposable and rebuilds from card `origin` markers.
+- `src/lib/template-expression.ts` renders `{{...}}` expressions and must stay pure, with no filesystem or workspace imports: the template editor bundles it into the browser.
 - The board UI uses `src/lib/workspace/board-repository.ts` to project validated components to the UI and write user edits back as canonical resources. Preserve Markdown bodies and non-UI resource fields.
 - `src/lib/workspace/file-transaction.ts` owns durable atomic creation, replacement, directory flushing, and rollback for multi-file source changes. Use it instead of ad hoc file writes.
 - Keep board components small and composable under `src/components/board/`. Reuse existing primitives in `src/components/ui/`; add a primitive only when the product needs it.

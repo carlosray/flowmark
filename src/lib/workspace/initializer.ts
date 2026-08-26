@@ -25,6 +25,7 @@ export const FLOWMARK_AGENT_GUIDANCE = `# Flowmark task-management rules
 ## Source of truth
 
 - The filesystem is the database. \`flowmark.yaml\`, \`cards/\`, \`columns/\`, \`tags/\`, \`rules/\`, \`comments/\`, \`checklists/\`, \`templates/\`, and \`archive/\` are authoritative.
+- \`templates/\` holds Markdown card templates that scheduled \`create_card\` rules instantiate. A card written by such a rule carries an \`origin\` marker; never remove or edit it, because it is what stops the card from being created twice.
 - Markdown and YAML files are the only source of truth. Never introduce or depend on a database, browser storage, cache, or generated index for task semantics.
 - \`.flowmark/\` is disposable runtime state. Never store the only copy of task data there and do not edit it to change tasks.
 - Work locally by default. Never send task contents to a network service unless the user explicitly requests it.

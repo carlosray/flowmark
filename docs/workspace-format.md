@@ -76,7 +76,12 @@ defaults:
 ui:
   column_order: [column_inbox]
   theme: flow-neutral
+  locale: en
 ```
+
+`ui.locale` is optional and defaults to `en`. It decides how template
+expressions render worded dates, so the same source file produces the same text
+on every machine.
 
 Completion, due-date, movement, sorting, and archival policy do not belong in
 the root or column files. Express them with rules.
@@ -109,6 +114,53 @@ Review the current behavior and record the decision.
 
 Comments and checklists point to their owning card, and the card points back.
 Both directions must agree.
+
+A card created by a scheduled rule also carries an optional `origin`:
+
+```yaml
+origin:
+  rule_id: rule_piano
+  template_id: template_piano
+  occurrence: 2026-08-22T08:00:00Z
+```
+
+The field is written by Flowmark and identifies the exact scheduled moment the
+card answers. It is what stops a rule from creating the same card twice, so
+editing or removing it by hand can produce a duplicate.
+
+## Templates
+
+Templates are Markdown with YAML frontmatter, like cards. They describe a card
+that does not exist yet, and a scheduled `create_card` rule instantiates them.
+
+```markdown
+---
+schema_version: 1
+id: template_piano
+name: Piano practice
+card:
+  title: "Piano · {{date+2d:long}}"
+  column_id: column_planned
+  tag_ids: [tag_music]
+  due:
+    mode: offset
+    offset_days: 2
+checklist:
+  - "Scales for {{weekday+2d}}"
+created_at: 2026-08-26T09:00:00Z
+updated_at: 2026-08-26T09:00:00Z
+---
+
+Practice on {{weekday+2d}}.
+```
+
+`card.title` is required. `card.column_id` falls back to
+`defaults.initial_column_id`. `card.due.mode` is `none`, `offset` with
+`offset_days`, or `fixed` with `date`.
+
+The title, body, and each checklist entry accept `{{...}}` expressions, which
+are documented in `docs/rules.md`. An unusable expression is a validation
+error, so a broken template cannot reach disk.
 
 ## Archive behavior
 

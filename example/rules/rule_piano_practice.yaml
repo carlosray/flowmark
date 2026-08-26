@@ -1,0 +1,15 @@
+schema_version: 1
+id: rule_piano_practice
+name: Piano practice every third day
+enabled: true
+trigger:
+  type: schedule
+  every:
+    days: 3
+    anchor: 2026-08-19
+    at: "08:00"
+actions:
+  - type: create_card
+    template_id: template_piano
+created_at: 2026-08-26T09:00:00Z
+updated_at: 2026-08-26T09:00:00Z
