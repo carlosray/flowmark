@@ -13,7 +13,13 @@ import { applyRuleTransaction, type RuleEvent } from "../rule-engine";
 import { readWorkspaceBoard, writeWorkspaceBoard } from "./board-repository";
 import { FileMutation, rollbackAndRethrow } from "./file-transaction";
 import { readWorkspaceRules } from "./rules-repository";
-import { scheduledCreations, writeWatermark, type ScheduledCreation } from "./schedule-state";
+import {
+  pendingOccurrences,
+  readWatermark,
+  scheduledCreations,
+  writeWatermark,
+  type ScheduledCreation,
+} from "./schedule-state";
 import { instantiateTemplate, type InstantiatedCard } from "./template-instantiation";
 import { toCardTemplate } from "./templates-repository";
 import { validateWorkspace, type WorkspaceSnapshot } from "./validator";
@@ -191,19 +197,52 @@ export async function createCardForOccurrence(
   return card.cardId;
 }
 
+export type OccurrenceDecision = "repeat" | "skip" | "repeat_series" | "decline_series";
+
+export interface OccurrenceResolution {
+  occurrence: Date;
+  decision: OccurrenceDecision;
+}
+
+/** Moves the watermark forward only; a stale answer never rewinds it. */
+async function advanceWatermark(root: string, ruleId: string, occurrence: string) {
+  const current = await readWatermark(root, ruleId);
+  if (current !== null && Date.parse(current) >= Date.parse(occurrence)) return;
+  await writeWatermark(root, ruleId, occurrence);
+}
+
 /**
- * Creates the card for an occurrence and records that the occurrence has been
- * dealt with, whether or not a card resulted.
+ * Applies the user's answer to a missed occurrence.
+ *
+ * Every decision advances the watermark, so the question is asked once. Cards
+ * that do get created carry their `origin`, which keeps the answer durable even
+ * if the watermark is later lost.
  */
-export async function processOccurrence(
+export async function resolveOccurrenceDecision(
   root: string,
   ruleId: string,
-  occurrence: Date,
-  options: { create: boolean; now?: Date } = { create: true },
-): Promise<string | null> {
-  const created = options.create
-    ? await createCardForOccurrence(root, ruleId, occurrence, options.now ?? new Date())
-    : null;
-  await writeWatermark(root, ruleId, occurrence.toISOString());
+  resolution: OccurrenceResolution,
+  now = new Date(),
+): Promise<string[]> {
+  const { occurrence, decision } = resolution;
+  if (decision === "repeat" || decision === "skip") {
+    const created =
+      decision === "repeat" ? await createCardForOccurrence(root, ruleId, occurrence, now) : null;
+    await advanceWatermark(root, ruleId, occurrence.toISOString());
+    return created ? [created] : [];
+  }
+
+  const series = (await pendingOccurrences(root, now)).find(
+    (candidate) => candidate.ruleId === ruleId,
+  );
+  const occurrences = series?.occurrences ?? [occurrence.toISOString()];
+  const created: string[] = [];
+  if (decision === "repeat_series")
+    for (const pending of occurrences) {
+      const cardId = await createCardForOccurrence(root, ruleId, new Date(pending), now);
+      if (cardId) created.push(cardId);
+    }
+  const last = occurrences.at(-1);
+  if (last) await advanceWatermark(root, ruleId, last);
   return created;
 }

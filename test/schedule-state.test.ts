@@ -12,6 +12,7 @@ import {
   resolveWatermark,
   writeWatermark,
 } from "../src/lib/workspace/schedule-state.ts";
+import { resolveOccurrenceDecision } from "../src/lib/workspace/scheduled-cards.ts";
 import { writeWorkspaceTemplates } from "../src/lib/workspace/templates-repository.ts";
 
 const created = "2026-08-19T06:00:00Z";
@@ -195,5 +196,82 @@ test("a long absence collapses into one series without per-run previews", async 
   assert.ok(series.occurrences.length > PENDING_SERIES_THRESHOLD);
   assert.equal(series.collapsed, true);
   assert.deepEqual(series.previews, []);
+  await rm(root, { recursive: true, force: true });
+});
+
+test("repeating one occurrence creates its card and advances the watermark", async () => {
+  const root = await makeWorkspace();
+  const created = await resolveOccurrenceDecision(root, "rule_piano", {
+    occurrence: new Date("2026-08-20T08:00:00Z"),
+    decision: "repeat",
+  });
+  assert.equal(created.length, 1);
+  assert.equal(await readWatermark(root, "rule_piano"), "2026-08-20T08:00:00.000Z");
+  const [series] = await pendingOccurrences(root, new Date("2026-08-21T09:00:00Z"));
+  assert.deepEqual(series.occurrences, ["2026-08-21T08:00:00.000Z"]);
+  await rm(root, { recursive: true, force: true });
+});
+
+test("skipping one occurrence creates nothing but still advances", async () => {
+  const root = await makeWorkspace();
+  const created = await resolveOccurrenceDecision(root, "rule_piano", {
+    occurrence: new Date("2026-08-20T08:00:00Z"),
+    decision: "skip",
+  });
+  assert.deepEqual(created, []);
+  assert.equal(await readWatermark(root, "rule_piano"), "2026-08-20T08:00:00.000Z");
+  await rm(root, { recursive: true, force: true });
+});
+
+test("repeating the series creates every pending card at once", async () => {
+  const root = await makeWorkspace();
+  const created = await resolveOccurrenceDecision(
+    root,
+    "rule_piano",
+    { occurrence: new Date("2026-08-19T08:00:00Z"), decision: "repeat_series" },
+    new Date("2026-08-21T09:00:00Z"),
+  );
+  assert.equal(created.length, 3);
+  assert.equal(await readWatermark(root, "rule_piano"), "2026-08-21T08:00:00.000Z");
+  assert.deepEqual(await pendingOccurrences(root, new Date("2026-08-21T09:00:00Z")), []);
+  await rm(root, { recursive: true, force: true });
+});
+
+test("declining the series creates nothing and clears the queue", async () => {
+  const root = await makeWorkspace();
+  const created = await resolveOccurrenceDecision(
+    root,
+    "rule_piano",
+    { occurrence: new Date("2026-08-19T08:00:00Z"), decision: "decline_series" },
+    new Date("2026-08-21T09:00:00Z"),
+  );
+  assert.deepEqual(created, []);
+  assert.deepEqual(await pendingOccurrences(root, new Date("2026-08-21T09:00:00Z")), []);
+  await rm(root, { recursive: true, force: true });
+});
+
+test("a stale answer never rewinds the watermark", async () => {
+  const root = await makeWorkspace();
+  await writeWatermark(root, "rule_piano", "2026-08-22T08:00:00.000Z");
+  await resolveOccurrenceDecision(root, "rule_piano", {
+    occurrence: new Date("2026-08-20T08:00:00Z"),
+    decision: "skip",
+  });
+  assert.equal(await readWatermark(root, "rule_piano"), "2026-08-22T08:00:00.000Z");
+  await rm(root, { recursive: true, force: true });
+});
+
+test("repeating an occurrence twice does not duplicate its card", async () => {
+  const root = await makeWorkspace();
+  const first = await resolveOccurrenceDecision(root, "rule_piano", {
+    occurrence: new Date("2026-08-20T08:00:00Z"),
+    decision: "repeat",
+  });
+  const second = await resolveOccurrenceDecision(root, "rule_piano", {
+    occurrence: new Date("2026-08-20T08:00:00Z"),
+    decision: "repeat",
+  });
+  assert.equal(first.length, 1);
+  assert.deepEqual(second, []);
   await rm(root, { recursive: true, force: true });
 });
