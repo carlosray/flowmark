@@ -263,19 +263,23 @@ updated_at: ${created}
       "the timer should wait exactly until the next occurrence",
     );
 
+    // Wait on the re-arm rather than on the card: the run writes the card
+    // before its promise settles, so polling the board can outrun the timer.
     armed[0].fire();
-    const deadline = Date.now() + 4000;
-    let cards = 0;
-    while (Date.now() < deadline && cards === 0) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-      cards = Object.keys((await readWorkspaceBoard(root)).cards).length;
-    }
-    assert.equal(cards, 1, "firing the timer should create the occurrence card");
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && armed.length < 2)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(armed.length, 2, "the timer should re-arm itself for the following occurrence");
+
+    assert.equal(
+      Object.keys((await readWorkspaceBoard(root)).cards).length,
+      1,
+      "firing the timer should create the occurrence card",
+    );
     assert.equal(await readWatermark(root, "rule_piano"), "2026-08-25T08:00:00.000Z");
   } finally {
     stop();
   }
-  assert.equal(armed.length, 2, "the timer should re-arm itself for the following occurrence");
   assert.deepEqual(cleared, [armed[1]], "stopping should clear the outstanding timer");
   await rm(root, { recursive: true, force: true });
 });
