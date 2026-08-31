@@ -72,14 +72,37 @@ test("modal checklist renders Markdown by default and delegates explicit saves",
   );
 
   assert.match(source, /<ChecklistItemText/);
-  assert.match(source, /text=\{i\.text\}/);
+  assert.match(source, /text=\{item\.text\}/);
   assert.match(source, /editable/);
   assert.match(
     source,
-    /onSave=\{\(text\) => store\.updateChecklistItem\(card\.id, i\.id, text\)\}/,
+    /onSave=\{\(text\) => store\.updateChecklistItem\(cardId, item\.id, text\)\}/,
   );
-  assert.match(source, /aria-label=\{\s*i\.done \? "Mark checklist item incomplete"/);
-  assert.doesNotMatch(source, /<input\s+value=\{i\.text\}/);
+  assert.match(source, /aria-label=\{item\.done \? "Mark checklist item incomplete"/);
+  assert.doesNotMatch(source, /<input\s+value=\{item\.text\}/);
+});
+
+test("modal checklist rows expose handle-only animated sorting", async () => {
+  const source = await readFile(
+    new URL("../src/components/board/CardModal.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /<DndContext[\s\S]*?<SortableContext/);
+  assert.match(source, /strategy=\{verticalListSortingStrategy\}/);
+  assert.match(source, /function SortableChecklistRow/);
+  assert.match(source, /useSortable\(\{ id: item\.id \}\)/);
+  assert.match(source, /CSS\.Transform\.toString\(transform\)/);
+  assert.match(source, /style=\{\{ transform: CSS\.Transform\.toString\(transform\), transition/);
+  assert.match(source, /group\/checklist-row/);
+  assert.match(source, /group-hover\/checklist-row:w-5/);
+  assert.match(source, /group-focus-within\/checklist-row:w-5/);
+  assert.match(source, /aria-label=\{`Reorder checklist item:/);
+  assert.match(
+    source,
+    /ref=\{setActivatorNodeRef\}[\s\S]*?\{\.\.\.attributes\}[\s\S]*?\{\.\.\.listeners\}/,
+  );
+  assert.match(source, /<DragOverlay[\s\S]*?<ChecklistDragOverlay/);
 });
 
 test("checklist prose contains long content inside cards and modal rows", async () => {

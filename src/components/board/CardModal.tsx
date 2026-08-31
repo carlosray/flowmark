@@ -1,9 +1,27 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { store, useBoard, useBoardSync } from "@/lib/store";
 import { rulesStore } from "@/lib/rules";
 import { hasMoreScrollableContent, saveCardContentBeforeClose } from "@/lib/card-modal-state";
-import type { Card } from "@/lib/types";
+import type { Card, ChecklistItem } from "@/lib/types";
 import { TagPill } from "./TagPill";
 import { TagPicker } from "./TagPicker";
 import { DueDatePicker } from "./DueDatePicker";
@@ -20,6 +38,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Columns3,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -140,6 +159,12 @@ function CardEditor({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const [showScrollCue, setShowScrollCue] = useState(false);
+  const [activeChecklistItemId, setActiveChecklistItemId] = useState<string | null>(null);
+  const checklistSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current;
@@ -156,6 +181,7 @@ function CardEditor({
   }, []);
 
   const checklistDone = card.checklist.filter((i) => i.done).length;
+  const activeChecklistItem = card.checklist.find((item) => item.id === activeChecklistItemId);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -253,37 +279,36 @@ function CardEditor({
                   )
                 }
               />
-              <div className="min-w-0 space-y-1">
-                {card.checklist.map((i) => (
-                  <div key={i.id} className="group flex min-w-0 items-start gap-2">
-                    <button
-                      onClick={() => store.toggleChecklistItem(card.id, i.id)}
-                      aria-label={
-                        i.done ? "Mark checklist item incomplete" : "Complete checklist item"
-                      }
-                      className={cn(
-                        "mt-1 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition",
-                        i.done
-                          ? "bg-primary border-primary text-primary-foreground"
-                          : "border-border-strong hover:border-primary",
-                      )}
-                    >
-                      {i.done && <CheckCircle2 size={10} />}
-                    </button>
-                    <ChecklistItemText
-                      text={i.text}
-                      done={i.done}
-                      editable
-                      onSave={(text) => store.updateChecklistItem(card.id, i.id, text)}
-                    />
-                    <button
-                      onClick={() => store.deleteChecklistItem(card.id, i.id)}
-                      className="mt-1 shrink-0 opacity-0 text-muted-foreground hover:text-danger group-hover:opacity-100"
-                    >
-                      <X size={12} />
-                    </button>
+              <DndContext
+                sensors={checklistSensors}
+                collisionDetection={closestCenter}
+                onDragStart={({ active }) => setActiveChecklistItemId(String(active.id))}
+                onDragCancel={() => setActiveChecklistItemId(null)}
+                onDragEnd={({ active, over }) => {
+                  setActiveChecklistItemId(null);
+                  if (!over || active.id === over.id) return;
+                  store.reorderChecklistItem(card.id, String(active.id), String(over.id));
+                }}
+              >
+                <SortableContext
+                  items={card.checklist.map((item) => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="min-w-0 space-y-1">
+                    {card.checklist.map((item) => (
+                      <SortableChecklistRow key={item.id} cardId={card.id} item={item} />
+                    ))}
                   </div>
-                ))}
+                </SortableContext>
+                {typeof document !== "undefined" &&
+                  createPortal(
+                    <DragOverlay dropAnimation={null}>
+                      {activeChecklistItem && <ChecklistDragOverlay item={activeChecklistItem} />}
+                    </DragOverlay>,
+                    document.body,
+                  )}
+              </DndContext>
+              <div className="min-w-0">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -421,6 +446,96 @@ function CardEditor({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function SortableChecklistRow({ cardId, item }: { cardId: string; item: ChecklistItem }) {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "group/checklist-row flex min-w-0 items-start rounded py-0.5",
+        isDragging && "opacity-30",
+      )}
+    >
+      <div
+        className={cn(
+          "mt-0.5 w-0 shrink-0 overflow-hidden opacity-0 transition-[width,opacity] duration-200 ease-out",
+          "group-hover/checklist-row:w-5 group-hover/checklist-row:opacity-100",
+          "group-focus-within/checklist-row:w-5 group-focus-within/checklist-row:opacity-100",
+          isDragging && "w-5 opacity-100",
+        )}
+      >
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          aria-label={`Reorder checklist item: ${item.text || "empty item"}`}
+          className="flex h-4 w-4 touch-none cursor-grab items-center justify-center rounded text-subtle-foreground transition-colors hover:text-foreground active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={14} />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => store.toggleChecklistItem(cardId, item.id)}
+        aria-label={item.done ? "Mark checklist item incomplete" : "Complete checklist item"}
+        className={cn(
+          "mt-1 mr-2 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition",
+          item.done
+            ? "bg-primary border-primary text-primary-foreground"
+            : "border-border-strong hover:border-primary",
+        )}
+      >
+        {item.done && <CheckCircle2 size={10} />}
+      </button>
+      <ChecklistItemText
+        text={item.text}
+        done={item.done}
+        editable
+        onSave={(text) => store.updateChecklistItem(cardId, item.id, text)}
+      />
+      <button
+        type="button"
+        onClick={() => store.deleteChecklistItem(cardId, item.id)}
+        aria-label={`Delete checklist item: ${item.text || "empty item"}`}
+        className="mt-1 ml-2 shrink-0 opacity-0 text-muted-foreground transition-opacity hover:text-danger group-hover/checklist-row:opacity-100 group-focus-within/checklist-row:opacity-100"
+      >
+        <X size={12} />
+      </button>
+    </div>
+  );
+}
+
+function ChecklistDragOverlay({ item }: { item: ChecklistItem }) {
+  return (
+    <div className="flex min-w-0 items-start rounded-md border border-primary/40 bg-surface px-1.5 py-1.5 shadow-lg">
+      <span className="mt-0.5 flex h-4 w-5 shrink-0 items-center justify-center text-muted-foreground">
+        <GripVertical size={14} />
+      </span>
+      <span
+        className={cn(
+          "mt-1 mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2",
+          item.done ? "bg-primary border-primary text-primary-foreground" : "border-border-strong",
+        )}
+      >
+        {item.done && <CheckCircle2 size={10} />}
+      </span>
+      <ChecklistItemText text={item.text} done={item.done} />
+      <span className="ml-2 w-3 shrink-0" />
     </div>
   );
 }
