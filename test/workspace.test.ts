@@ -1050,6 +1050,37 @@ test("persists a board edit as validated canonical source files", async () => {
   }
 });
 
+test("persists reordered checklist items in canonical YAML order", async () => {
+  const root = await makeWorkspace();
+  try {
+    const board = await readWorkspaceBoard(root);
+    board.cards.card_review!.checklist = [
+      { id: "item_second", text: "Ship document", done: true },
+      ...board.cards.card_review!.checklist,
+    ];
+    await writeWorkspaceBoard(root, board);
+
+    const reloaded = await readWorkspaceBoard(root);
+    assert.deepEqual(
+      reloaded.cards.card_review?.checklist.map((item) => item.id),
+      ["item_second", "item_read"],
+    );
+
+    const source = parse(
+      await readFile(join(root, "checklists/checklist_review.yaml"), "utf8"),
+    ) as {
+      items: Array<{ id: string; text: string; completed: boolean; position: number }>;
+    };
+    assert.deepEqual(source.items, [
+      { id: "item_second", text: "Ship document", completed: true, position: 1024 },
+      { id: "item_read", text: "Read document", completed: false, position: 2048 },
+    ]);
+    assert.deepEqual((await validateWorkspace(root, { strict: true })).errors, []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("persists an edited Markdown comment through the store as valid source", async () => {
   const root = await makeWorkspace();
   try {
