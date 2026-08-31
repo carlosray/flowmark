@@ -141,6 +141,37 @@ test("editing a comment persists only the matching comment body", async () => {
   ]);
 });
 
+test("reorders checklist items without changing their contents", async () => {
+  const initial = structuredClone(initialBoard);
+  initial.cards.card_test.checklist = [
+    { id: "item_first", text: "First", done: true },
+    { id: "item_second", text: "Second", done: false },
+    { id: "item_third", text: "Third", done: false },
+  ];
+  const savedBoards: Board[] = [];
+  const store = new BoardStore(
+    {
+      read: async () => ({ path: "/workspace", board: structuredClone(initial) }),
+      save: async (board) => {
+        savedBoards.push(structuredClone(board));
+        return { path: "/workspace" };
+      },
+    },
+    10_000,
+  );
+  await store.reloadFromDisk();
+
+  store.reorderChecklistItem("card_test", "item_third", "item_first");
+  await store.flushPendingSave();
+
+  assert.equal(savedBoards.length, 1);
+  assert.deepEqual(savedBoards[0].cards.card_test.checklist, [
+    { id: "item_third", text: "Third", done: false },
+    { id: "item_first", text: "First", done: true },
+    { id: "item_second", text: "Second", done: false },
+  ]);
+});
+
 test("drag previews update the visible board without saving or dispatching move events", async () => {
   const savedBoards: Board[] = [];
   const events: string[] = [];

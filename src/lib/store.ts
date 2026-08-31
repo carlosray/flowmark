@@ -479,6 +479,17 @@ export class BoardStore {
       checklist: card.checklist.map((i) => (i.id === itemId ? { ...i, text } : i)),
     });
   }
+  reorderChecklistItem(cardId: string, activeItemId: string, overItemId: string) {
+    const card = this.state.cards[cardId];
+    if (!card) return;
+    const oldIndex = card.checklist.findIndex((item) => item.id === activeItemId);
+    const newIndex = card.checklist.findIndex((item) => item.id === overItemId);
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+    const checklist = [...card.checklist];
+    const [item] = checklist.splice(oldIndex, 1);
+    checklist.splice(newIndex, 0, item);
+    this.updateCard(cardId, { checklist });
+  }
   deleteChecklistItem(cardId: string, itemId: string) {
     const card = this.state.cards[cardId];
     if (!card) return;
