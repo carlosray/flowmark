@@ -1075,6 +1075,25 @@ test("persists reordered checklist items in canonical YAML order", async () => {
       { id: "item_second", text: "Ship document", completed: true, position: 1024 },
       { id: "item_read", text: "Read document", completed: false, position: 2048 },
     ]);
+
+    reloaded.cards.card_review!.checklist.reverse();
+    await writeWorkspaceBoard(root, reloaded);
+
+    const reordered = await readWorkspaceBoard(root);
+    assert.deepEqual(
+      reordered.cards.card_review?.checklist.map((item) => item.id),
+      ["item_read", "item_second"],
+    );
+
+    const reorderedSource = parse(
+      await readFile(join(root, "checklists/checklist_review.yaml"), "utf8"),
+    ) as {
+      items: Array<{ id: string; text: string; completed: boolean; position: number }>;
+    };
+    assert.deepEqual(reorderedSource.items, [
+      { id: "item_read", text: "Read document", completed: false, position: 1024 },
+      { id: "item_second", text: "Ship document", completed: true, position: 2048 },
+    ]);
     assert.deepEqual((await validateWorkspace(root, { strict: true })).errors, []);
   } finally {
     await rm(root, { recursive: true, force: true });

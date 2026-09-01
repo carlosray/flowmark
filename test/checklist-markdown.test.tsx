@@ -95,14 +95,40 @@ test("modal checklist rows expose handle-only animated sorting", async () => {
   assert.match(source, /CSS\.Transform\.toString\(transform\)/);
   assert.match(source, /style=\{\{ transform: CSS\.Transform\.toString\(transform\), transition/);
   assert.match(source, /group\/checklist-row/);
-  assert.match(source, /group-hover\/checklist-row:w-5/);
-  assert.match(source, /group-focus-within\/checklist-row:w-5/);
+  assert.match(source, /group-hover\/checklist-row:w-6/);
+  assert.match(source, /group-focus-within\/checklist-row:w-6/);
   assert.match(source, /aria-label=\{`Reorder checklist item:/);
   assert.match(
     source,
     /ref=\{setActivatorNodeRef\}[\s\S]*?\{\.\.\.attributes\}[\s\S]*?\{\.\.\.listeners\}/,
   );
   assert.match(source, /<DragOverlay[\s\S]*?<ChecklistDragOverlay/);
+});
+
+test("keyboard checklist dragging reserves Escape for drag cancellation", async () => {
+  const source = await readFile(
+    new URL("../src/components/board/CardModal.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /const checklistDragActiveRef = useRef\(false\)/);
+  assert.match(
+    source,
+    /onEscapeKeyDown=\{\(event\) => \{[\s\S]*?checklistDragActiveRef\.current[\s\S]*?event\.preventDefault\(\)/,
+  );
+  assert.match(source, /onChecklistDragActiveChange\(true\)/);
+  assert.match(source, /onChecklistDragActiveChange\(false\)/);
+});
+
+test("checklist drag handles remain touch reachable without hover", async () => {
+  const source = await readFile(
+    new URL("../src/components/board/CardModal.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /\[@media\(hover:none\)\]:w-6/);
+  assert.match(source, /\[@media\(hover:none\)\]:opacity-100/);
+  assert.match(source, /className="flex h-6 w-6 touch-none/);
 });
 
 test("checklist prose contains long content inside cards and modal rows", async () => {

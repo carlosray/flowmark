@@ -83,6 +83,7 @@ function OpenCardModal({
   const [title, setTitle] = useState(card.title);
   const [desc, setDesc] = useState(card.description);
   const closingRef = useRef(false);
+  const checklistDragActiveRef = useRef(false);
 
   useEffect(() => {
     rulesStore.holdCard(card.id);
@@ -105,7 +106,12 @@ function OpenCardModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && void saveAndClose()}>
-      <DialogContent className="w-[calc(100vw-1rem)] sm:w-[92vw] max-w-[1080px] h-[90dvh] sm:h-[min(88vh,900px)] bg-surface border-border p-0 gap-0 overflow-hidden flex flex-col">
+      <DialogContent
+        onEscapeKeyDown={(event) => {
+          if (checklistDragActiveRef.current) event.preventDefault();
+        }}
+        className="w-[calc(100vw-1rem)] sm:w-[92vw] max-w-[1080px] h-[90dvh] sm:h-[min(88vh,900px)] bg-surface border-border p-0 gap-0 overflow-hidden flex flex-col"
+      >
         <DialogTitle className="sr-only">{card.title}</DialogTitle>
         <DialogDescription className="sr-only">
           Edit the card title, due date, description, checklist, comments, and archive state.
@@ -119,6 +125,9 @@ function OpenCardModal({
           onClose={onClose}
           isDraft={isDraft}
           onSaveAndClose={saveAndClose}
+          onChecklistDragActiveChange={(active) => {
+            checklistDragActiveRef.current = active;
+          }}
         />
       </DialogContent>
     </Dialog>
@@ -134,6 +143,7 @@ function CardEditor({
   onClose,
   isDraft = false,
   onSaveAndClose,
+  onChecklistDragActiveChange,
 }: {
   card: Card;
   title: string;
@@ -143,6 +153,7 @@ function CardEditor({
   onClose: () => void;
   isDraft?: boolean;
   onSaveAndClose: () => Promise<void>;
+  onChecklistDragActiveChange: (active: boolean) => void;
 }) {
   const board = useBoard();
   const { tags } = board;
@@ -282,9 +293,16 @@ function CardEditor({
               <DndContext
                 sensors={checklistSensors}
                 collisionDetection={closestCenter}
-                onDragStart={({ active }) => setActiveChecklistItemId(String(active.id))}
-                onDragCancel={() => setActiveChecklistItemId(null)}
+                onDragStart={({ active }) => {
+                  onChecklistDragActiveChange(true);
+                  setActiveChecklistItemId(String(active.id));
+                }}
+                onDragCancel={() => {
+                  onChecklistDragActiveChange(false);
+                  setActiveChecklistItemId(null);
+                }}
                 onDragEnd={({ active, over }) => {
+                  onChecklistDragActiveChange(false);
                   setActiveChecklistItemId(null);
                   if (!over || active.id === over.id) return;
                   store.reorderChecklistItem(card.id, String(active.id), String(over.id));
@@ -308,7 +326,7 @@ function CardEditor({
                     document.body,
                   )}
               </DndContext>
-              <div className="min-w-0">
+              <div className="mt-1 min-w-0">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -472,17 +490,18 @@ function SortableChecklistRow({ cardId, item }: { cardId: string; item: Checklis
     >
       <div
         className={cn(
-          "mt-0.5 w-0 shrink-0 overflow-hidden opacity-0 transition-[width,opacity] duration-200 ease-out",
-          "group-hover/checklist-row:w-5 group-hover/checklist-row:opacity-100",
-          "group-focus-within/checklist-row:w-5 group-focus-within/checklist-row:opacity-100",
-          isDragging && "w-5 opacity-100",
+          "w-0 shrink-0 overflow-hidden opacity-0 transition-[width,opacity] duration-200 ease-out",
+          "group-hover/checklist-row:w-6 group-hover/checklist-row:opacity-100",
+          "group-focus-within/checklist-row:w-6 group-focus-within/checklist-row:opacity-100",
+          "[@media(hover:none)]:w-6 [@media(hover:none)]:opacity-100",
+          isDragging && "w-6 opacity-100",
         )}
       >
         <button
           ref={setActivatorNodeRef}
           type="button"
           aria-label={`Reorder checklist item: ${item.text || "empty item"}`}
-          className="flex h-4 w-4 touch-none cursor-grab items-center justify-center rounded text-subtle-foreground transition-colors hover:text-foreground active:cursor-grabbing"
+          className="flex h-6 w-6 touch-none cursor-grab items-center justify-center rounded text-subtle-foreground transition-colors hover:text-foreground active:cursor-grabbing"
           {...attributes}
           {...listeners}
         >
@@ -523,7 +542,7 @@ function SortableChecklistRow({ cardId, item }: { cardId: string; item: Checklis
 function ChecklistDragOverlay({ item }: { item: ChecklistItem }) {
   return (
     <div className="flex min-w-0 items-start rounded-md border border-primary/40 bg-surface px-1.5 py-1.5 shadow-lg">
-      <span className="mt-0.5 flex h-4 w-5 shrink-0 items-center justify-center text-muted-foreground">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-foreground">
         <GripVertical size={14} />
       </span>
       <span
