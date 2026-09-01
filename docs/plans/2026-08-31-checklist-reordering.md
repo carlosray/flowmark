@@ -13,6 +13,7 @@
 ### Task 1: Store checklist reorder mutation
 
 **Files:**
+
 - Modify: `test/store.test.ts`
 - Modify: `src/lib/store.ts`
 
@@ -67,6 +68,7 @@ git commit -m "Add checklist reorder mutation"
 ### Task 2: Canonical YAML order round-trip
 
 **Files:**
+
 - Modify: `test/workspace.test.ts`
 
 **Step 1: Write the failing repository test**
@@ -97,6 +99,7 @@ git commit -m "Test checklist order persistence"
 ### Task 3: Sortable checklist rows in the card modal
 
 **Files:**
+
 - Modify: `test/checklist-markdown.test.tsx`
 - Modify: `src/components/board/CardModal.tsx`
 
@@ -151,6 +154,7 @@ git commit -m "Add draggable checklist rows"
 ### Task 4: Visual and regression verification
 
 **Files:**
+
 - Modify only if verification exposes a task-related issue.
 
 **Step 1: Run complete static and unit checks**
