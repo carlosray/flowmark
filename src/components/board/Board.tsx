@@ -40,6 +40,7 @@ import type { Card } from "@/lib/types";
 import { dueState } from "@/lib/due";
 import type { ThemeId } from "@/lib/themes";
 import { checklistExpansionStore } from "@/lib/checklist-expansion";
+import { commentSortStore } from "@/lib/comment-sort";
 import { matchesCardSearch, matchesTagFilter } from "@/lib/board-filters";
 import { reloadWithMinimumFeedback } from "@/lib/reload-feedback";
 import { MarkdownInline } from "./MarkdownContent";
@@ -47,6 +48,7 @@ import { MarkdownInline } from "./MarkdownContent";
 import { cn } from "@/lib/utils";
 import { resolveRequestedCardId } from "@/lib/card-deep-link";
 import { CardLinkContext } from "./card-link-context";
+import type { CommentSortOrder } from "@/lib/workspace/runtime-preferences";
 
 type DueFilter = "all" | "overdue" | "today" | "week" | "none";
 
@@ -55,20 +57,24 @@ type CompletedFilter = "all" | "open" | "done";
 export function Board({
   initialTheme,
   initialExpandedChecklistCardIds,
+  initialCommentSortOrder,
   initialOpenCardId,
   onOpenCardIdChange,
 }: {
   initialTheme: ThemeId;
   initialExpandedChecklistCardIds: string[];
+  initialCommentSortOrder: CommentSortOrder;
   initialOpenCardId?: string;
   onOpenCardIdChange?: (cardId: string | null) => void;
 }) {
   const board = useBoard();
   const sync = useBoardSync();
   const initialExpandedChecklistCardIdsRef = useRef(initialExpandedChecklistCardIds);
+  const initialCommentSortOrderRef = useRef(initialCommentSortOrder);
 
   useEffect(() => {
     checklistExpansionStore.hydrate(initialExpandedChecklistCardIdsRef.current);
+    commentSortStore.hydrate(initialCommentSortOrderRef.current);
     store.hydrate();
     rulesStore.hydrate();
   }, []);

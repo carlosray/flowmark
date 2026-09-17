@@ -3,12 +3,19 @@ import { useCallback } from "react";
 import { Board } from "@/components/board/Board";
 import { parseCardSearch } from "@/lib/card-deep-link";
 import { getExpandedChecklistCardIds } from "@/lib/checklist-expansion.functions";
+import { getCommentSortOrder } from "@/lib/comment-sort.functions";
 
 const rootRoute = getRouteApi("__root__");
 
 export const Route = createFileRoute("/")({
   validateSearch: parseCardSearch,
-  loader: () => getExpandedChecklistCardIds(),
+  loader: async () => {
+    const [initialExpandedChecklistCardIds, commentSortOrder] = await Promise.all([
+      getExpandedChecklistCardIds(),
+      getCommentSortOrder(),
+    ]);
+    return { initialExpandedChecklistCardIds, commentSortOrder };
+  },
   component: Index,
   head: () => ({
     meta: [
@@ -30,7 +37,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const theme = rootRoute.useLoaderData();
-  const initialExpandedChecklistCardIds = Route.useLoaderData();
+  const { initialExpandedChecklistCardIds, commentSortOrder } = Route.useLoaderData();
   const { card } = Route.useSearch();
   const navigate = useNavigate({ from: "/" });
   const setOpenCardId = useCallback(
@@ -42,6 +49,7 @@ function Index() {
     <Board
       initialTheme={theme}
       initialExpandedChecklistCardIds={initialExpandedChecklistCardIds}
+      initialCommentSortOrder={commentSortOrder}
       initialOpenCardId={card}
       onOpenCardIdChange={setOpenCardId}
     />

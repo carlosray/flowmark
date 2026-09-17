@@ -217,3 +217,28 @@ test("descriptions and comments resolve card references while titles stay plain"
   );
   assert.match(editor, /cn\("min-w-0 flex-1", cardMentions && "relative"\)/);
 });
+
+test("comments expose a workspace-wide date sort toggle and render in the selected order", async () => {
+  const { CommentSortToggle } = await import("../src/components/board/CardModal.tsx");
+  const source = await readFile(
+    new URL("../src/components/board/CardModal.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /useCommentSortOrder\(\)/);
+  assert.match(source, /sortComments\(card\.comments, commentSortOrder\)\.map/);
+  assert.match(source, /commentSortStore\.setOrder/);
+  assert.match(source, /title=\{`Comments \(\$\{card\.comments\.length\}\)`\}/);
+
+  const newestFirst = renderToStaticMarkup(
+    createElement(CommentSortToggle, { order: "descending", onToggle: () => {} }),
+  );
+  assert.match(newestFirst, /aria-label="Comment order: newest first"/);
+  assert.match(newestFirst, /Newest first/);
+
+  const oldestFirst = renderToStaticMarkup(
+    createElement(CommentSortToggle, { order: "ascending", onToggle: () => {} }),
+  );
+  assert.match(oldestFirst, /aria-label="Comment order: oldest first"/);
+  assert.match(oldestFirst, /Oldest first/);
+});

@@ -5,7 +5,9 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  readCommentSortOrder,
   readExpandedChecklistCardIds,
+  writeCommentSortOrder,
   writeExpandedChecklistCardIds,
 } from "../src/lib/workspace/runtime-preferences.ts";
 
@@ -89,6 +91,65 @@ test("replaces a sequence runtime document with valid disposable preferences", a
     await writeExpandedChecklistCardIds(root, ["card_alpha"]);
 
     assert.deepEqual(await readExpandedChecklistCardIds(root), ["card_alpha"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("comment sorting defaults to descending for missing, malformed, and unsupported values", async () => {
+  const root = await makeRoot();
+  try {
+    assert.equal(await readCommentSortOrder(root), "descending");
+
+    await writeFile(join(root, ".flowmark", "runtime.yaml"), "ui: [not: valid");
+    assert.equal(await readCommentSortOrder(root), "descending");
+
+    await writeFile(
+      join(root, ".flowmark", "runtime.yaml"),
+      "ui:\n  comment_sort_order: sideways\n",
+    );
+    assert.equal(await readCommentSortOrder(root), "descending");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("reads both supported comment sort orders", async () => {
+  const root = await makeRoot();
+  try {
+    for (const order of ["ascending", "descending"] as const) {
+      await writeFile(
+        join(root, ".flowmark", "runtime.yaml"),
+        `ui:\n  comment_sort_order: ${order}\n`,
+      );
+      assert.equal(await readCommentSortOrder(root), order);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("writes comment sort order while preserving unrelated runtime preferences and comments", async () => {
+  const root = await makeRoot();
+  try {
+    const path = join(root, ".flowmark", "runtime.yaml");
+    await writeFile(
+      path,
+      "# disposable local state\nscheduler:\n  cursor: 42\nui:\n  density: compact\n",
+    );
+
+    await writeCommentSortOrder(root, "ascending");
+
+    const updated = await readFile(path, "utf8");
+    assert.match(updated, /^# disposable local state/m);
+    assert.match(updated, /scheduler:\n {2}cursor: 42/);
+    assert.match(updated, /density: compact/);
+    assert.match(updated, /comment_sort_order: ascending/);
+    assert.equal(await readCommentSortOrder(root), "ascending");
+    assert.deepEqual(
+      (await readdir(join(root, ".flowmark"))).filter((name) => name.endsWith(".tmp")),
+      [],
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -22,6 +22,8 @@ import { store, useBoard, useBoardSync } from "@/lib/store";
 import { rulesStore } from "@/lib/rules";
 import { hasMoreScrollableContent, saveCardContentBeforeClose } from "@/lib/card-modal-state";
 import type { Card, ChecklistItem } from "@/lib/types";
+import { commentSortStore, sortComments, useCommentSortOrder } from "@/lib/comment-sort";
+import type { CommentSortOrder } from "@/lib/workspace/runtime-preferences";
 import { TagPill } from "./TagPill";
 import { TagPicker } from "./TagPicker";
 import { DueDatePicker } from "./DueDatePicker";
@@ -39,6 +41,8 @@ import {
   ChevronDown,
   Columns3,
   GripVertical,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -171,6 +175,7 @@ function CardEditor({
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const [showScrollCue, setShowScrollCue] = useState(false);
   const [activeChecklistItemId, setActiveChecklistItemId] = useState<string | null>(null);
+  const commentSortOrder = useCommentSortOrder();
   const checklistSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
@@ -352,9 +357,18 @@ function CardEditor({
               <SectionHeader
                 icon={<MessageSquare size={13} />}
                 title={`Comments (${card.comments.length})`}
+                action={
+                  <CommentSortToggle
+                    order={commentSortOrder}
+                    onToggle={() => {
+                      const next = commentSortOrder === "descending" ? "ascending" : "descending";
+                      void commentSortStore.setOrder(next).catch(() => undefined);
+                    }}
+                  />
+                }
               />
               <div className="space-y-2">
-                {card.comments.map((c) => (
+                {sortComments(card.comments, commentSortOrder).map((c) => (
                   <div
                     key={c.id}
                     className="bg-surface-sunken border border-border rounded-md p-2.5 group"
@@ -565,6 +579,30 @@ export function CardColumnChip({ name }: { name: string }) {
       <Columns3 size={11} />
       {name}
     </span>
+  );
+}
+
+export function CommentSortToggle({
+  order,
+  onToggle,
+}: {
+  order: CommentSortOrder;
+  onToggle: () => void;
+}) {
+  const newestFirst = order === "descending";
+  const label = newestFirst ? "Newest first" : "Oldest first";
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={`Comment order: ${label.toLowerCase()}`}
+      title={`Comment order: ${label.toLowerCase()}`}
+      className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-sunken px-2 py-1 text-[11px] font-medium normal-case tracking-normal text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+    >
+      {newestFirst ? <ArrowDownWideNarrow size={12} /> : <ArrowUpNarrowWide size={12} />}
+      <span>{label}</span>
+    </button>
   );
 }
 
