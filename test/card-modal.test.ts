@@ -242,3 +242,27 @@ test("comments expose a workspace-wide date sort toggle and render in the select
   assert.match(oldestFirst, /aria-label="Comment order: oldest first"/);
   assert.match(oldestFirst, /Oldest first/);
 });
+
+test("the new-comment composer follows the selected comment order", async () => {
+  const { OrderedCommentContent } = await import("../src/components/board/CardModal.tsx");
+  const composer = createElement("span", null, "comment-composer");
+  const comments = createElement("span", null, "comment-list");
+
+  const newestFirst = renderToStaticMarkup(
+    createElement(OrderedCommentContent, {
+      order: "descending",
+      composer,
+      children: comments,
+    }),
+  );
+  assert.ok(newestFirst.indexOf("comment-composer") < newestFirst.indexOf("comment-list"));
+
+  const oldestFirst = renderToStaticMarkup(
+    createElement(OrderedCommentContent, {
+      order: "ascending",
+      composer,
+      children: comments,
+    }),
+  );
+  assert.ok(oldestFirst.indexOf("comment-list") < oldestFirst.indexOf("comment-composer"));
+});

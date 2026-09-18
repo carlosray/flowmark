@@ -198,6 +198,33 @@ function CardEditor({
 
   const checklistDone = card.checklist.filter((i) => i.done).length;
   const activeChecklistItem = card.checklist.find((item) => item.id === activeChecklistItemId);
+  const commentComposer = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!newComment.trim()) return;
+        store.addComment(card.id, newComment.trim());
+        setNewComment("");
+      }}
+    >
+      <textarea
+        value={newComment}
+        onChange={(e) => setNewComment(e.target.value)}
+        placeholder="Write a comment… (Markdown, ⌘+Enter to submit)"
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            if (newComment.trim()) {
+              store.addComment(card.id, newComment.trim());
+              setNewComment("");
+            }
+          }
+        }}
+        rows={2}
+        className="w-full font-mono text-[13px] bg-surface-sunken border border-border rounded-md p-2 outline-none focus:border-primary/60 resize-y"
+      />
+    </form>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -367,7 +394,7 @@ function CardEditor({
                   />
                 }
               />
-              <div className="space-y-2">
+              <OrderedCommentContent order={commentSortOrder} composer={commentComposer}>
                 {sortComments(card.comments, commentSortOrder).map((c) => (
                   <div
                     key={c.id}
@@ -397,32 +424,7 @@ function CardEditor({
                     />
                   </div>
                 ))}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!newComment.trim()) return;
-                    store.addComment(card.id, newComment.trim());
-                    setNewComment("");
-                  }}
-                >
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Write a comment… (Markdown, ⌘+Enter to submit)"
-                    onKeyDown={(e) => {
-                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                        e.preventDefault();
-                        if (newComment.trim()) {
-                          store.addComment(card.id, newComment.trim());
-                          setNewComment("");
-                        }
-                      }
-                    }}
-                    rows={2}
-                    className="w-full font-mono text-[13px] bg-surface-sunken border border-border rounded-md p-2 outline-none focus:border-primary/60 resize-y"
-                  />
-                </form>
-              </div>
+              </OrderedCommentContent>
             </section>
 
             <div className="mt-auto pt-2 border-t border-border space-y-1.5 text-[11px] text-subtle-foreground">
@@ -603,6 +605,24 @@ export function CommentSortToggle({
       {newestFirst ? <ArrowDownWideNarrow size={12} /> : <ArrowUpNarrowWide size={12} />}
       <span>{label}</span>
     </button>
+  );
+}
+
+export function OrderedCommentContent({
+  order,
+  composer,
+  children,
+}: {
+  order: CommentSortOrder;
+  composer: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      {order === "descending" && composer}
+      {children}
+      {order === "ascending" && composer}
+    </div>
   );
 }
 
