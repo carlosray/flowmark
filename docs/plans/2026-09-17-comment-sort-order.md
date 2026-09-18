@@ -117,6 +117,10 @@ Expected: PASS.
 
 ### Task 4: Full verification
 
+Before full verification, add a focused card-modal test proving that the shared new-comment form is
+rendered before the list for `descending` and after it for `ascending`. Extract the form into a
+small local render helper or component so there is only one submission implementation.
+
 **Files:**
 
 - Verify only

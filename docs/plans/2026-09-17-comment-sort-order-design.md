@@ -25,6 +25,11 @@ current order (`Newest first` or `Oldest first`). Clicking it changes the shared
 and persists it through a server function. If persistence fails, restore the previous value so the
 UI does not claim an unsaved preference.
 
+The new-comment form follows the reading direction. With `Newest first`, render it before the
+comment list so a submitted comment appears directly below the input. With `Oldest first`, render
+the same form after the list. Move the form in the DOM rather than relying on CSS ordering so the
+visual and keyboard-navigation orders agree.
+
 Only a copied array is sorted for rendering. Canonical comment arrays and Markdown resources keep
 their existing order. Compare valid `createdAt` timestamps first and use immutable comment IDs as a
 stable tie-breaker.
@@ -36,4 +41,6 @@ stable tie-breaker.
 - Pure sorting tests cover both directions and deterministic ties without mutating the input.
 - UI contract tests cover the accessible control next to the Comments heading and its connection
   to the shared preference.
+- Comment-section tests cover the form appearing above descending comments and below ascending
+  comments.
 - Finish with the complete project verification suite required by `AGENTS.md`.
